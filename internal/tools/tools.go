@@ -14,6 +14,7 @@ import (
 func RegisterAll(server *mcp.Server) {
 	registerSearchKeyword(server)
 	registerGetFile(server)
+	RegisterSymbolTools(server)
 }
 
 func registerSearchKeyword(server *mcp.Server) {
