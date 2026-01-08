@@ -1,54 +1,38 @@
 # Current Work Summary
 
-Phase 2 (Symbol Indexing) is complete. All MCP tools implemented and verified.
+Executing: repo-search Phase 3 - Semantic Search (Optional, Pluggable)
 
-**Branch:** `para/repo-search-phase-2`
-**Master Plan:** context/plans/2025-01-07-phase-2-symbol-indexing.md
+**Branch:** `para/repo-search-phase-3`
+**Phase Plan:** context/plans/2025-01-08-phase-3-semantic-search.md
 
 ## To-Do List
 
-- [x] Add SQLite dependency (modernc.org/sqlite - pure Go, no CGO)
-- [x] Implement SQLite schema setup (internal/search/symbols/schema.go)
-- [x] Implement ctags JSON parsing (internal/search/symbols/ctags.go)
-- [x] Implement symbol index operations (internal/search/symbols/index.go)
-- [x] Update indexer CLI with real indexing logic (cmd/repo-search-index/main.go)
-- [x] Add find_symbol MCP tool (internal/tools/symbols.go)
-- [x] Add list_defs_in_file MCP tool (internal/tools/symbols.go)
-- [x] Update doctor command to check for ctags
-- [x] Add tests for ctags parsing and symbol queries
-- [x] Verify end-to-end: index repo, query symbols via MCP
+- [ ] Implement Ollama HTTP client (internal/embedding/ollama.go)
+- [ ] Implement code chunker (internal/embedding/chunker.go)
+- [ ] Implement vector storage schema (internal/embedding/store.go)
+- [ ] Implement vector math - cosine similarity (internal/embedding/math.go)
+- [ ] Implement semantic search (internal/embedding/search.go)
+- [ ] Implement hybrid search (internal/search/hybrid/hybrid.go)
+- [ ] Add search_semantic MCP tool (internal/tools/semantic.go)
+- [ ] Add hybrid_search MCP tool (internal/tools/semantic.go)
+- [ ] Update indexer CLI with embed subcommand
+- [ ] Update Makefile with embed target and Ollama doctor check
+- [ ] Add tests for chunker and vector math
+- [ ] Verify end-to-end with Ollama
 
 ## Progress Notes
 
-**2025-01-08:** Phase 2 implementation complete.
-
-- Added modernc.org/sqlite (pure Go, no CGO required)
-- Implemented SQLite schema with symbols + files tables for incremental indexing
-- Created ctags.go for JSON output parsing with kind normalization
-- Created index.go with FindSymbol, ListDefsInFile, Update, FullReindex
-- Updated indexer CLI with real indexing, stats command, --force flag
-- Added find_symbol and list_defs_in_file MCP tools
-- Updated doctor to check for universal-ctags
-- Added comprehensive tests (27 new test cases)
-- Verified end-to-end: indexed 578 symbols from 16 files in 69ms
-
-**Verification results:**
-- `make doctor` ✓ (with ctags detection)
-- `make test` ✓ (all tests pass)
-- `make index` ✓ (578 symbols indexed)
-- `tools/list` ✓ (4 tools registered)
-- `find_symbol` ✓ (returns matching symbols)
-- `list_defs_in_file` ✓ (returns file outline)
+_Update this section as you complete items._
 
 ---
 ```json
 {
   "active_context": [
-    "context/plans/2025-01-07-phase-2-symbol-indexing.md"
+    "context/plans/2025-01-08-phase-3-semantic-search.md"
   ],
   "completed_summaries": [],
-  "execution_branch": "para/repo-search-phase-2",
-  "execution_started": "2025-01-08T00:00:00Z",
+  "execution_branch": "para/repo-search-phase-3",
+  "execution_started": "2025-01-08T02:00:00Z",
   "phased_execution": {
     "master_plan": "context/data/rough_plan/claude_code_indexing.md",
     "phases": [
@@ -65,11 +49,11 @@ Phase 2 (Symbol Indexing) is complete. All MCP tools implemented and verified.
       {
         "phase": 3,
         "plan": "context/plans/2025-01-08-phase-3-semantic-search.md",
-        "status": "pending"
+        "status": "in_progress"
       }
     ],
-    "current_phase": 2
+    "current_phase": 3
   },
-  "last_updated": "2025-01-08T01:00:00Z"
+  "last_updated": "2025-01-08T02:00:00Z"
 }
 ```
