@@ -1,6 +1,6 @@
 # repo-search
 
-A local MCP server providing fast codebase search and file retrieval for Claude Code.
+A local MCP server providing fast codebase search, file retrieval, and symbol navigation for Claude Code.
 
 ## Overview
 
@@ -8,13 +8,17 @@ A local MCP server providing fast codebase search and file retrieval for Claude 
 
 - **`search_keyword`**: Fast regex search powered by ripgrep
 - **`get_file`**: File reading with optional line-range slicing
-
-This is **Phase 1** of a larger indexing solution. Future phases will add symbol navigation (ctags) and optional semantic search (embeddings).
+- **`find_symbol`**: Symbol lookup (functions, types, etc.) via ctags + SQLite
+- **`list_defs_in_file`**: List all definitions in a file
 
 ## Requirements
 
+### Required
 - Go 1.21+
 - [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`)
+
+### Optional (for symbol indexing)
+- [universal-ctags](https://github.com/universal-ctags/ctags)
 
 ## Installation
 
@@ -28,6 +32,22 @@ make doctor
 
 # Build
 make build
+
+# Index symbols (requires universal-ctags)
+make index
+```
+
+### Installing ctags
+
+```bash
+# macOS
+brew install universal-ctags
+
+# Ubuntu/Debian
+apt install universal-ctags
+
+# Fedora
+dnf install ctags
 ```
 
 ## Usage
@@ -42,7 +62,7 @@ The `.mcp.json` file registers `repo-search` as an MCP server. When you enter th
 ./bin/claude
 ```
 
-This runs any indexing (no-op in Phase 1) and then launches Claude Code.
+This runs indexing and then launches Claude Code.
 
 **Or use Claude Code directly** - the MCP server will be started automatically via `.mcp.json`.
 
@@ -59,6 +79,7 @@ make build
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
 {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_keyword","arguments":{"query":"func main","top_k":5}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"find_symbol","arguments":{"name":"Server","kind":"struct"}}}
 ```
 
 ## MCP Tools
@@ -111,16 +132,67 @@ Read file contents with optional line-range slicing.
 }
 ```
 
+### find_symbol
+
+Find symbol definitions by name. Supports fuzzy matching.
+
+**Input:**
+```json
+{
+  "name": "string (symbol name)",
+  "kind": "string (optional: function, type, struct, interface, variable, constant)",
+  "limit": "number (default: 50)"
+}
+```
+
+**Output:**
+```json
+{
+  "symbols": [
+    {
+      "name": "Server",
+      "kind": "struct",
+      "path": "internal/mcp/server.go",
+      "line": 18,
+      "scope": "package:mcp"
+    }
+  ]
+}
+```
+
+### list_defs_in_file
+
+List all symbol definitions in a specific file.
+
+**Input:**
+```json
+{
+  "path": "string (file path)"
+}
+```
+
+**Output:**
+```json
+{
+  "path": "internal/mcp/server.go",
+  "symbols": [
+    {"name": "Server", "kind": "struct", "line": 18},
+    {"name": "NewServer", "kind": "function", "line": 27},
+    {"name": "Run", "kind": "function", "line": 44}
+  ]
+}
+```
+
 ## Makefile Targets
 
 | Target | Description |
 |--------|-------------|
 | `make build` | Build both binaries to `dist/` |
 | `make mcp` | Build and run the MCP server |
-| `make index` | Run indexer (no-op in Phase 1) |
+| `make index` | Index symbols (requires ctags) |
 | `make doctor` | Check all dependencies |
 | `make test` | Run tests |
-| `make clean` | Remove build artifacts |
+| `make clean` | Remove build artifacts and index |
 
 ## Architecture
 
@@ -128,36 +200,40 @@ Read file contents with optional line-range slicing.
 repo-search/
 ├── cmd/
 │   ├── repo-search/          # MCP stdio server
-│   └── repo-search-index/    # Indexer CLI (no-op Phase 1)
+│   └── repo-search-index/    # Symbol indexer CLI
 ├── internal/
 │   ├── mcp/                  # JSON-RPC over stdio transport
 │   ├── search/
 │   │   ├── keyword/          # ripgrep integration
-│   │   └── files/            # file read + slicing
+│   │   ├── files/            # file read + slicing
+│   │   └── symbols/          # ctags + SQLite symbol index
 │   └── tools/                # MCP tool definitions
 ├── bin/
 │   └── claude                # wrapper script
 ├── .mcp.json                 # MCP server registration
+├── .repo_search/             # Index storage (gitignored)
+│   └── symbols.db            # SQLite symbol database
 └── Makefile
 ```
 
 ## Roadmap
 
-### Phase 1 (Current)
+### Phase 1 (Complete)
 - [x] MCP stdio server
 - [x] `search_keyword` via ripgrep
 - [x] `get_file` with line slicing
 - [x] `.mcp.json` project registration
 - [x] `bin/claude` wrapper
 
-### Phase 2 (Planned)
-- [ ] Symbol indexing via universal-ctags
-- [ ] SQLite-backed symbol table
-- [ ] `find_symbol` MCP tool
-- [ ] `list_defs_in_file` MCP tool
-- [ ] Incremental indexing (mtime-based)
+### Phase 2 (Complete)
+- [x] Symbol indexing via universal-ctags
+- [x] SQLite-backed symbol table
+- [x] `find_symbol` MCP tool
+- [x] `list_defs_in_file` MCP tool
+- [x] Incremental indexing (mtime-based)
+- [x] Graceful degradation when ctags not available
 
-### Phase 3 (Future)
+### Phase 3 (Planned)
 - [ ] Optional semantic embeddings (Ollama)
 - [ ] `search_semantic` MCP tool
 - [ ] `hybrid_search` combining all methods
