@@ -1,6 +1,6 @@
 # repo-search
 
-A local MCP server providing fast codebase search, file retrieval, and symbol navigation for Claude Code.
+A local MCP server providing fast codebase search, file retrieval, symbol navigation, and semantic search for Claude Code.
 
 ## Overview
 
@@ -10,6 +10,8 @@ A local MCP server providing fast codebase search, file retrieval, and symbol na
 - **`get_file`**: File reading with optional line-range slicing
 - **`find_symbol`**: Symbol lookup (functions, types, etc.) via ctags + SQLite
 - **`list_defs_in_file`**: List all definitions in a file
+- **`search_semantic`**: Semantic code search via local embeddings (Ollama)
+- **`hybrid_search`**: Combined keyword + semantic search
 
 ## Requirements
 
@@ -19,6 +21,9 @@ A local MCP server providing fast codebase search, file retrieval, and symbol na
 
 ### Optional (for symbol indexing)
 - [universal-ctags](https://github.com/universal-ctags/ctags)
+
+### Optional (for semantic search)
+- [Ollama](https://ollama.ai) with `nomic-embed-text` model
 
 ## Installation
 
@@ -35,6 +40,9 @@ make build
 
 # Index symbols (requires universal-ctags)
 make index
+
+# Generate embeddings (requires Ollama)
+make embed
 ```
 
 ### Installing ctags
@@ -48,6 +56,16 @@ apt install universal-ctags
 
 # Fedora
 dnf install ctags
+```
+
+### Installing Ollama
+
+```bash
+# macOS/Linux - install from website
+# https://ollama.ai
+
+# Pull the embedding model
+ollama pull nomic-embed-text
 ```
 
 ## Usage
@@ -183,16 +201,79 @@ List all symbol definitions in a specific file.
 }
 ```
 
+### search_semantic
+
+Search for code semantically similar to a query. Requires Ollama.
+
+**Input:**
+```json
+{
+  "query": "string (natural language query)",
+  "limit": "number (default: 10)"
+}
+```
+
+**Output:**
+```json
+{
+  "available": true,
+  "results": [
+    {
+      "path": "internal/embedding/math.go",
+      "start_line": 9,
+      "end_line": 28,
+      "snippet": "func CosineSimilarity...",
+      "score": 0.72
+    }
+  ]
+}
+```
+
+### hybrid_search
+
+Combined keyword + semantic search with weighted scoring.
+
+**Input:**
+```json
+{
+  "query": "string (search query)",
+  "keyword_limit": "number (default: 20)",
+  "semantic_limit": "number (default: 10)"
+}
+```
+
+**Output:**
+```json
+{
+  "results": [
+    {
+      "path": "file.go",
+      "start_line": 1,
+      "end_line": 10,
+      "snippet": "...",
+      "score": 0.8,
+      "source": "both"
+    }
+  ],
+  "keyword_count": 5,
+  "semantic_count": 3,
+  "semantic_enabled": true
+}
+```
+
 ## Makefile Targets
 
-| Target | Description |
-|--------|-------------|
-| `make build` | Build both binaries to `dist/` |
-| `make mcp` | Build and run the MCP server |
-| `make index` | Index symbols (requires ctags) |
-| `make doctor` | Check all dependencies |
-| `make test` | Run tests |
-| `make clean` | Remove build artifacts and index |
+| Target           | Description                              |
+|------------------|------------------------------------------|
+| `make build`     | Build both binaries to `dist/`           |
+| `make mcp`       | Build and run the MCP server             |
+| `make index`     | Index symbols (requires ctags)           |
+| `make embed`     | Generate embeddings (requires Ollama)    |
+| `make index-all` | Run both index and embed                 |
+| `make stats`     | Show index statistics                    |
+| `make doctor`    | Check all dependencies                   |
+| `make test`      | Run tests                                |
+| `make clean`     | Remove build artifacts and index         |
 
 ## Architecture
 
@@ -200,19 +281,26 @@ List all symbol definitions in a specific file.
 repo-search/
 ├── cmd/
 │   ├── repo-search/          # MCP stdio server
-│   └── repo-search-index/    # Symbol indexer CLI
+│   └── repo-search-index/    # Symbol indexer + embedding CLI
 ├── internal/
 │   ├── mcp/                  # JSON-RPC over stdio transport
+│   ├── embedding/            # Ollama embeddings + vector search
+│   │   ├── ollama.go         # Ollama HTTP client
+│   │   ├── chunker.go        # Code chunking with symbol boundaries
+│   │   ├── store.go          # SQLite embedding storage
+│   │   ├── math.go           # Vector math (cosine similarity)
+│   │   └── search.go         # Semantic search
 │   ├── search/
 │   │   ├── keyword/          # ripgrep integration
 │   │   ├── files/            # file read + slicing
-│   │   └── symbols/          # ctags + SQLite symbol index
+│   │   ├── symbols/          # ctags + SQLite symbol index
+│   │   └── hybrid/           # Combined keyword + semantic search
 │   └── tools/                # MCP tool definitions
 ├── bin/
 │   └── claude                # wrapper script
 ├── .mcp.json                 # MCP server registration
 ├── .repo_search/             # Index storage (gitignored)
-│   └── symbols.db            # SQLite symbol database
+│   └── symbols.db            # SQLite database (symbols + embeddings)
 └── Makefile
 ```
 
@@ -233,10 +321,15 @@ repo-search/
 - [x] Incremental indexing (mtime-based)
 - [x] Graceful degradation when ctags not available
 
-### Phase 3 (Planned)
-- [ ] Optional semantic embeddings (Ollama)
-- [ ] `search_semantic` MCP tool
-- [ ] `hybrid_search` combining all methods
+### Phase 3 (Complete)
+- [x] Ollama embedding client (`nomic-embed-text` model)
+- [x] Symbol-aware code chunking with overlap
+- [x] SQLite embedding storage with content hashing
+- [x] Cosine similarity vector search
+- [x] `search_semantic` MCP tool
+- [x] `hybrid_search` MCP tool
+- [x] Incremental embedding (skip unchanged chunks)
+- [x] Graceful degradation when Ollama unavailable
 
 ## License
 
