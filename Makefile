@@ -42,18 +42,34 @@ doctor:
 		echo "  Install with: brew install universal-ctags"; \
 	fi
 	@echo ""
-	@echo "=== Optional (for semantic search) ==="
-	@if command -v ollama >/dev/null 2>&1; then \
-		echo "✓ ollama: $$(ollama --version 2>/dev/null || echo 'installed')"; \
-		if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "nomic-embed-text"; then \
-			echo "✓ nomic-embed-text: model available"; \
+	@echo "=== Embedding Provider ==="
+	@PROVIDER=$${REPO_SEARCH_EMBEDDING_PROVIDER:-ollama}; \
+	echo "  Provider: $$PROVIDER"; \
+	if [ "$$PROVIDER" = "off" ]; then \
+		echo "  Status: disabled"; \
+	elif [ "$$PROVIDER" = "litellm" ]; then \
+		LITELLM_URL=$${REPO_SEARCH_LITELLM_URL:-http://localhost:4000}; \
+		echo "  URL: $$LITELLM_URL"; \
+		if curl -s "$$LITELLM_URL/health" >/dev/null 2>&1; then \
+			echo "✓ litellm: available"; \
 		else \
-			echo "○ nomic-embed-text: model not pulled"; \
-			echo "  Run: ollama pull nomic-embed-text"; \
+			echo "○ litellm: not available at $$LITELLM_URL"; \
 		fi \
 	else \
-		echo "○ ollama: not found (semantic search disabled)"; \
-		echo "  Install from: https://ollama.ai"; \
+		if command -v ollama >/dev/null 2>&1; then \
+			echo "✓ ollama: $$(ollama --version 2>/dev/null || echo 'installed')"; \
+			OLLAMA_URL=$${REPO_SEARCH_OLLAMA_URL:-http://localhost:11434}; \
+			MODEL=$${REPO_SEARCH_EMBEDDING_MODEL:-nomic-embed-text}; \
+			if curl -s "$$OLLAMA_URL/api/tags" 2>/dev/null | grep -q "$$MODEL"; then \
+				echo "✓ $$MODEL: model available"; \
+			else \
+				echo "○ $$MODEL: model not pulled"; \
+				echo "  Run: ollama pull $$MODEL"; \
+			fi \
+		else \
+			echo "○ ollama: not found (semantic search disabled)"; \
+			echo "  Install from: https://ollama.ai"; \
+		fi \
 	fi
 	@echo ""
 	@echo "All required dependencies satisfied ✓"
