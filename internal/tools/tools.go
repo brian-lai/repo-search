@@ -15,6 +15,7 @@ func RegisterAll(server *mcp.Server) {
 	registerSearchKeyword(server)
 	registerGetFile(server)
 	RegisterSymbolTools(server)
+	RegisterSemanticTools(server)
 }
 
 func registerSearchKeyword(server *mcp.Server) {

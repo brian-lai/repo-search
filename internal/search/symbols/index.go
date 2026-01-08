@@ -37,6 +37,11 @@ func (idx *Index) Close() error {
 	return nil
 }
 
+// DB returns the underlying database connection
+func (idx *Index) DB() *sql.DB {
+	return idx.db
+}
+
 // FindSymbol searches for symbols by name (supports LIKE patterns)
 func (idx *Index) FindSymbol(name string, kind string, limit int) ([]Symbol, error) {
 	if limit <= 0 {
