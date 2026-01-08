@@ -1,7 +1,7 @@
 BINARY=dist/repo-search
 INDEXER=dist/repo-search-index
 
-.PHONY: build mcp index doctor clean test
+.PHONY: build mcp index embed doctor clean test
 
 # Build both binaries
 build:
@@ -13,9 +13,16 @@ build:
 mcp: build
 	@./$(BINARY)
 
-# Run indexer
+# Run symbol indexer
 index: build
 	@./$(INDEXER) index .
+
+# Generate embeddings (requires Ollama)
+embed: build
+	@./$(INDEXER) embed .
+
+# Run both index and embed
+index-all: index embed
 
 # Check dependencies
 doctor:
@@ -35,7 +42,25 @@ doctor:
 		echo "  Install with: brew install universal-ctags"; \
 	fi
 	@echo ""
+	@echo "=== Optional (for semantic search) ==="
+	@if command -v ollama >/dev/null 2>&1; then \
+		echo "✓ ollama: $$(ollama --version 2>/dev/null || echo 'installed')"; \
+		if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "nomic-embed-text"; then \
+			echo "✓ nomic-embed-text: model available"; \
+		else \
+			echo "○ nomic-embed-text: model not pulled"; \
+			echo "  Run: ollama pull nomic-embed-text"; \
+		fi \
+	else \
+		echo "○ ollama: not found (semantic search disabled)"; \
+		echo "  Install from: https://ollama.ai"; \
+	fi
+	@echo ""
 	@echo "All required dependencies satisfied ✓"
+
+# Show index stats
+stats: build
+	@./$(INDEXER) stats .
 
 # Run tests
 test:
