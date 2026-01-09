@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	ignore "github.com/sabhiram/go-gitignore"
+
 	"repo-search/internal/embedding"
 	"repo-search/internal/search/symbols"
 )
@@ -217,16 +219,32 @@ func runEmbed(args []string) {
 	var allChunks []embedding.Chunk
 	chunkerConfig := embedding.DefaultChunkerConfig()
 
+	// Load gitignore patterns
+	gi := loadGitignore(absPath)
+
 	// Walk indexed files and create chunks
 	err = filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
+
+		relPath, _ := filepath.Rel(absPath, filePath)
+
 		if info.IsDir() {
 			name := info.Name()
+			// Always skip these directories
 			if name == ".git" || name == "node_modules" || name == "vendor" || name == ".repo_search" {
 				return filepath.SkipDir
 			}
+			// Check gitignore for directories
+			if gi != nil && gi.MatchesPath(relPath+"/") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Check gitignore for files
+		if gi != nil && gi.MatchesPath(relPath) {
 			return nil
 		}
 
@@ -234,8 +252,6 @@ func runEmbed(args []string) {
 		if !isCodeFile(filePath) {
 			return nil
 		}
-
-		relPath, _ := filepath.Rel(absPath, filePath)
 
 		// Get symbols for this file (for smart chunking)
 		syms, _ := idx.ListDefsInFile(relPath)
@@ -300,6 +316,77 @@ func isCodeFile(path string) bool {
 		".scala": true, ".php": true, ".cs": true, ".sh": true, ".sql": true,
 	}
 	return codeExts[ext]
+}
+
+// loadGitignore loads gitignore patterns from local .gitignore and global ~/.gitignore
+func loadGitignore(rootPath string) *ignore.GitIgnore {
+	var patterns []string
+
+	// Load global gitignore (~/.gitignore)
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		globalGitignore := filepath.Join(homeDir, ".gitignore")
+		if content, err := os.ReadFile(globalGitignore); err == nil {
+			for _, line := range splitLines(string(content)) {
+				if line != "" && !isComment(line) {
+					patterns = append(patterns, line)
+				}
+			}
+		}
+	}
+
+	// Load local .gitignore
+	localGitignore := filepath.Join(rootPath, ".gitignore")
+	if content, err := os.ReadFile(localGitignore); err == nil {
+		for _, line := range splitLines(string(content)) {
+			if line != "" && !isComment(line) {
+				patterns = append(patterns, line)
+			}
+		}
+	}
+
+	if len(patterns) == 0 {
+		return nil
+	}
+
+	gi := ignore.CompileIgnoreLines(patterns...)
+	return gi
+}
+
+// splitLines splits content into lines, trimming whitespace
+func splitLines(content string) []string {
+	var lines []string
+	for _, line := range filepath.SplitList(content) {
+		lines = append(lines, line)
+	}
+	// Actually split by newlines
+	lines = nil
+	start := 0
+	for i, c := range content {
+		if c == '\n' {
+			line := content[start:i]
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			start = i + 1
+		}
+	}
+	if start < len(content) {
+		lines = append(lines, content[start:])
+	}
+	return lines
+}
+
+// isComment returns true if line is a gitignore comment
+func isComment(line string) bool {
+	for _, c := range line {
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		return c == '#'
+	}
+	return false
 }
 
 func runStats(args []string) {

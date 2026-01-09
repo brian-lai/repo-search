@@ -198,7 +198,7 @@ func (c *IPCClient) Status() (*DaemonStatus, error) {
 		return nil, err
 	}
 	if resp.Status != "ok" {
-		return nil, fmt.Errorf(resp.Message)
+		return nil, fmt.Errorf("%s", resp.Message)
 	}
 
 	// Convert Data to DaemonStatus
@@ -215,7 +215,7 @@ func (c *IPCClient) Reindex(path string) error {
 		return err
 	}
 	if resp.Status != "ok" {
-		return fmt.Errorf(resp.Message)
+		return fmt.Errorf("%s", resp.Message)
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -185,7 +186,10 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 
 	// Embed chunks with progress tracking
 	// Process one at a time for progress reporting
-	embeddings := make([][]float32, len(toEmbed))
+	var successfulChunks []Chunk
+	var successfulEmbeddings [][]float32
+	var skippedCount int
+
 	for i, chunk := range toEmbed {
 		select {
 		case <-ctx.Done():
@@ -199,18 +203,28 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 
 		embs, err := s.embedder.Embed(ctx, []string{chunk.Content})
 		if err != nil {
-			return fmt.Errorf("embedding chunk %d (%s:%d): %w",
-				i, chunk.Path, chunk.StartLine, err)
+			// Skip chunks that fail to embed
+			skippedCount++
+			continue
 		}
-		if len(embs) == 0 {
-			return fmt.Errorf("no embedding returned for chunk %d", i)
+		if len(embs) == 0 || len(embs[0]) == 0 {
+			// Skip chunks that return empty embeddings
+			skippedCount++
+			continue
 		}
-		embeddings[i] = embs[0]
+		successfulChunks = append(successfulChunks, chunk)
+		successfulEmbeddings = append(successfulEmbeddings, embs[0])
 	}
 
-	// Save all embeddings with provider ID
-	if err := s.store.SaveBatch(toEmbed, embeddings, providerID); err != nil {
-		return fmt.Errorf("saving embeddings: %w", err)
+	if skippedCount > 0 {
+		fmt.Fprintf(os.Stderr, "\n[repo-search-index] skipped %d chunks that failed to embed\n", skippedCount)
+	}
+
+	// Save all successful embeddings with provider ID
+	if len(successfulChunks) > 0 {
+		if err := s.store.SaveBatch(successfulChunks, successfulEmbeddings, providerID); err != nil {
+			return fmt.Errorf("saving embeddings: %w", err)
+		}
 	}
 
 	return nil
