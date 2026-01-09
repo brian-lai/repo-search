@@ -25,31 +25,31 @@ type SemanticSearchResult struct {
 
 // SemanticSearcher performs semantic search over embedded code
 type SemanticSearcher struct {
-	store  *EmbeddingStore
-	client *OllamaClient
-	db     *sql.DB
+	store    *EmbeddingStore
+	embedder Embedder
+	db       *sql.DB
 }
 
 // NewSemanticSearcher creates a new semantic searcher
-func NewSemanticSearcher(db *sql.DB, client *OllamaClient) (*SemanticSearcher, error) {
+func NewSemanticSearcher(db *sql.DB, embedder Embedder) (*SemanticSearcher, error) {
 	store, err := NewEmbeddingStore(db)
 	if err != nil {
 		return nil, fmt.Errorf("creating embedding store: %w", err)
 	}
 
 	return &SemanticSearcher{
-		store:  store,
-		client: client,
-		db:     db,
+		store:    store,
+		embedder: embedder,
+		db:       db,
 	}, nil
 }
 
 // Available checks if semantic search is available
 func (s *SemanticSearcher) Available() bool {
-	if s.client == nil {
+	if s.embedder == nil {
 		return false
 	}
-	return s.client.Available()
+	return s.embedder.Available()
 }
 
 // Search performs a semantic search for the given query
@@ -68,7 +68,7 @@ func (s *SemanticSearcher) SearchWithContext(ctx context.Context, query string, 
 		return &SemanticSearchResult{
 			Available: false,
 			Results:   []SemanticResult{},
-			Error:     "Ollama not available",
+			Error:     "Embedding provider not available",
 		}, nil
 	}
 
@@ -87,10 +87,14 @@ func (s *SemanticSearcher) SearchWithContext(ctx context.Context, query string, 
 	}
 
 	// Embed the query
-	queryEmbedding, err := s.client.EmbedWithContext(ctx, query)
+	queryEmbeddings, err := s.embedder.Embed(ctx, []string{query})
 	if err != nil {
 		return nil, fmt.Errorf("embedding query: %w", err)
 	}
+	if len(queryEmbeddings) == 0 {
+		return nil, fmt.Errorf("no embedding returned for query")
+	}
+	queryEmbedding := queryEmbeddings[0]
 
 	// Build vector list for search
 	vectors := make([][]float32, len(records))
@@ -131,9 +135,17 @@ func (s *SemanticSearcher) Store() *EmbeddingStore {
 	return s.store
 }
 
-// Client returns the underlying Ollama client
-func (s *SemanticSearcher) Client() *OllamaClient {
-	return s.client
+// Embedder returns the underlying embedding provider
+func (s *SemanticSearcher) Embedder() Embedder {
+	return s.embedder
+}
+
+// ProviderID returns the provider ID for the current embedder
+func (s *SemanticSearcher) ProviderID() string {
+	if s.embedder == nil {
+		return "off"
+	}
+	return s.embedder.ProviderID()
 }
 
 // getSnippet retrieves a code snippet from file (truncated for display)
@@ -150,15 +162,15 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 	}
 
 	if !s.Available() {
-		return fmt.Errorf("ollama not available")
+		return fmt.Errorf("embedding provider not available")
 	}
 
-	model := s.client.Model()
+	providerID := s.embedder.ProviderID()
 
 	// Filter out already indexed chunks
 	var toEmbed []Chunk
 	for _, chunk := range chunks {
-		has, err := s.store.HasEmbedding(chunk, model)
+		has, err := s.store.HasEmbedding(chunk, providerID)
 		if err != nil {
 			return fmt.Errorf("checking embedding: %w", err)
 		}
@@ -171,7 +183,8 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 		return nil // All chunks already indexed
 	}
 
-	// Embed chunks one by one (Ollama doesn't support true batching)
+	// Embed chunks with progress tracking
+	// Process one at a time for progress reporting
 	embeddings := make([][]float32, len(toEmbed))
 	for i, chunk := range toEmbed {
 		select {
@@ -184,16 +197,19 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 			progressFn(i+1, len(toEmbed))
 		}
 
-		emb, err := s.client.EmbedWithContext(ctx, chunk.Content)
+		embs, err := s.embedder.Embed(ctx, []string{chunk.Content})
 		if err != nil {
 			return fmt.Errorf("embedding chunk %d (%s:%d): %w",
 				i, chunk.Path, chunk.StartLine, err)
 		}
-		embeddings[i] = emb
+		if len(embs) == 0 {
+			return fmt.Errorf("no embedding returned for chunk %d", i)
+		}
+		embeddings[i] = embs[0]
 	}
 
-	// Save all embeddings
-	if err := s.store.SaveBatch(toEmbed, embeddings, model); err != nil {
+	// Save all embeddings with provider ID
+	if err := s.store.SaveBatch(toEmbed, embeddings, providerID); err != nil {
 		return fmt.Errorf("saving embeddings: %w", err)
 	}
 

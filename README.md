@@ -23,7 +23,8 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 - [universal-ctags](https://github.com/universal-ctags/ctags)
 
 ### Optional (for semantic search)
-- [Ollama](https://ollama.ai) with `nomic-embed-text` model
+- [Ollama](https://ollama.ai) with `nomic-embed-text` model (default)
+- Or [LiteLLM](https://github.com/BerriAI/litellm) / OpenAI-compatible endpoint
 
 ## Installation
 
@@ -58,7 +59,7 @@ apt install universal-ctags
 dnf install ctags
 ```
 
-### Installing Ollama
+### Installing Ollama (default embedding provider)
 
 ```bash
 # macOS/Linux - install from website
@@ -66,6 +67,23 @@ dnf install ctags
 
 # Pull the embedding model
 ollama pull nomic-embed-text
+```
+
+### Using LiteLLM (alternative embedding provider)
+
+LiteLLM provides a unified API for multiple embedding providers (OpenAI, Azure, Bedrock, etc.):
+
+```bash
+# Install LiteLLM
+pip install litellm
+
+# Start the proxy server
+litellm --model text-embedding-3-small
+
+# Configure repo-search to use it
+export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
+export REPO_SEARCH_LITELLM_URL=http://localhost:4000
+export REPO_SEARCH_LITELLM_API_KEY=your-api-key
 ```
 
 ## Usage
@@ -275,6 +293,46 @@ Combined keyword + semantic search with weighted scoring.
 | `make test`      | Run tests                                |
 | `make clean`     | Remove build artifacts and index         |
 
+## Configuration
+
+### Environment Variables
+
+Configure the embedding provider and related settings via environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REPO_SEARCH_EMBEDDING_PROVIDER` | Provider: `ollama`, `litellm`, or `off` | `ollama` |
+| `REPO_SEARCH_OLLAMA_URL` | Ollama server URL | `http://localhost:11434` |
+| `REPO_SEARCH_LITELLM_URL` | LiteLLM server URL | `http://localhost:4000` |
+| `REPO_SEARCH_LITELLM_API_KEY` | API key for LiteLLM | (none) |
+| `REPO_SEARCH_EMBEDDING_MODEL` | Override the embedding model | (provider default) |
+| `REPO_SEARCH_EMBEDDING_DIMENSIONS` | Override embedding dimensions | (model default) |
+
+### Examples
+
+**Using Ollama (default):**
+```bash
+make embed  # Uses Ollama at localhost:11434 with nomic-embed-text
+```
+
+**Using a custom Ollama model:**
+```bash
+REPO_SEARCH_EMBEDDING_MODEL=mxbai-embed-large make embed
+```
+
+**Using LiteLLM with OpenAI:**
+```bash
+export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
+export REPO_SEARCH_LITELLM_API_KEY=sk-...
+export REPO_SEARCH_EMBEDDING_MODEL=text-embedding-3-small
+make embed
+```
+
+**Disabling semantic search:**
+```bash
+REPO_SEARCH_EMBEDDING_PROVIDER=off make embed  # Skips embedding
+```
+
 ## Architecture
 
 ```
@@ -284,8 +342,11 @@ repo-search/
 │   └── repo-search-index/    # Symbol indexer + embedding CLI
 ├── internal/
 │   ├── mcp/                  # JSON-RPC over stdio transport
-│   ├── embedding/            # Ollama embeddings + vector search
+│   ├── embedding/            # Embedding providers + vector search
+│   │   ├── embedder.go       # Embedder interface
+│   │   ├── provider.go       # Provider factory + config
 │   │   ├── ollama.go         # Ollama HTTP client
+│   │   ├── litellm.go        # LiteLLM/OpenAI-compatible client
 │   │   ├── chunker.go        # Code chunking with symbol boundaries
 │   │   ├── store.go          # SQLite embedding storage
 │   │   ├── math.go           # Vector math (cosine similarity)
@@ -330,6 +391,8 @@ repo-search/
 - [x] `hybrid_search` MCP tool
 - [x] Incremental embedding (skip unchanged chunks)
 - [x] Graceful degradation when Ollama unavailable
+- [x] Embedding adapter layer for provider swapping
+- [x] LiteLLM support for OpenAI-compatible APIs
 
 ## License
 

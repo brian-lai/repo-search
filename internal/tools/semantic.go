@@ -190,11 +190,14 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 	// Get db from index
 	db := idx.DB()
 
-	// Create Ollama client
-	ollamaClient := embedding.NewOllamaClient()
+	// Create embedder from environment configuration
+	embedder, err := embedding.NewEmbedderFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("creating embedder: %w", err)
+	}
 
 	// Create semantic searcher
-	return embedding.NewSemanticSearcher(db, ollamaClient)
+	return embedding.NewSemanticSearcher(db, embedder)
 }
 
 // getSnippetFn returns a function that reads code snippets from files

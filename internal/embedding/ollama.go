@@ -140,8 +140,8 @@ type embedResponse struct {
 	Embedding []float32 `json:"embedding"`
 }
 
-// Embed generates an embedding for a single text
-func (c *OllamaClient) Embed(text string) ([]float32, error) {
+// EmbedSingle generates an embedding for a single text
+func (c *OllamaClient) EmbedSingle(text string) ([]float32, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
@@ -228,3 +228,33 @@ func (c *OllamaClient) Model() string {
 func (c *OllamaClient) BaseURL() string {
 	return c.baseURL
 }
+
+// --- Embedder interface implementation ---
+
+// Embed implements Embedder.Embed - generates embeddings for multiple texts
+func (c *OllamaClient) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	return c.EmbedBatchWithContext(ctx, texts)
+}
+
+// ProviderID implements Embedder.ProviderID - returns unique identifier
+func (c *OllamaClient) ProviderID() string {
+	return "ollama:" + c.model
+}
+
+// Dimensions implements Embedder.Dimensions - returns embedding vector size
+func (c *OllamaClient) Dimensions() int {
+	// Model-specific dimensions
+	switch c.model {
+	case "nomic-embed-text", "nomic-embed-text:latest":
+		return 768
+	case "mxbai-embed-large", "mxbai-embed-large:latest":
+		return 1024
+	case "all-minilm", "all-minilm:latest":
+		return 384
+	default:
+		return DefaultDimensions // 768
+	}
+}
+
+// Ensure OllamaClient implements Embedder
+var _ Embedder = (*OllamaClient)(nil)

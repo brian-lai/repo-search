@@ -118,7 +118,8 @@ func runIndex(args []string) {
 func runEmbed(args []string) {
 	fs := flag.NewFlagSet("embed", flag.ExitOnError)
 	force := fs.Bool("force", false, "Re-embed all chunks (ignore cache)")
-	model := fs.String("model", embedding.DefaultModel, "Ollama embedding model")
+	provider := fs.String("provider", "", "Embedding provider (ollama, litellm, off)")
+	model := fs.String("model", "", "Embedding model (provider-specific default if empty)")
 	fs.Parse(args)
 
 	path := "."
@@ -132,20 +133,51 @@ func runEmbed(args []string) {
 		os.Exit(1)
 	}
 
-	// Check Ollama availability
-	ollamaClient := embedding.NewOllamaClient(embedding.WithModel(*model))
-	if !ollamaClient.Available() {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] error: Ollama not available")
-		fmt.Fprintln(os.Stderr, "[repo-search-index] install Ollama from https://ollama.ai")
-		fmt.Fprintln(os.Stderr, "[repo-search-index] then run: ollama pull nomic-embed-text")
+	// Load configuration from environment, with flag overrides
+	cfg := embedding.LoadConfigFromEnv()
+	if *provider != "" {
+		switch *provider {
+		case "ollama":
+			cfg.Provider = embedding.ProviderOllama
+		case "litellm":
+			cfg.Provider = embedding.ProviderLiteLLM
+		case "off":
+			cfg.Provider = embedding.ProviderOff
+		default:
+			fmt.Fprintf(os.Stderr, "error: unknown provider: %s\n", *provider)
+			os.Exit(1)
+		}
+	}
+	if *model != "" {
+		cfg.Model = *model
+	}
+
+	// Check if embedding is disabled
+	if cfg.Provider == embedding.ProviderOff {
+		fmt.Fprintln(os.Stderr, "[repo-search-index] embedding disabled (provider=off)")
+		return
+	}
+
+	// Create embedder
+	embedder, err := embedding.NewEmbedder(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: creating embedder: %v\n", err)
 		os.Exit(1)
 	}
 
-	if !ollamaClient.ModelAvailable() {
-		fmt.Fprintf(os.Stderr, "[repo-search-index] error: model %s not available\n", *model)
-		fmt.Fprintf(os.Stderr, "[repo-search-index] run: ollama pull %s\n", *model)
+	// Check availability
+	if !embedder.Available() {
+		fmt.Fprintf(os.Stderr, "[repo-search-index] error: %s not available\n", cfg.Provider)
+		if cfg.Provider == embedding.ProviderOllama {
+			fmt.Fprintln(os.Stderr, "[repo-search-index] install Ollama from https://ollama.ai")
+			fmt.Fprintln(os.Stderr, "[repo-search-index] then run: ollama pull nomic-embed-text")
+		} else if cfg.Provider == embedding.ProviderLiteLLM {
+			fmt.Fprintln(os.Stderr, "[repo-search-index] check REPO_SEARCH_LITELLM_URL and REPO_SEARCH_LITELLM_API_KEY")
+		}
 		os.Exit(1)
 	}
+
+	fmt.Fprintf(os.Stderr, "[repo-search-index] using provider: %s\n", embedder.ProviderID())
 
 	// Open database
 	indexDir := filepath.Join(absPath, ".repo_search")
@@ -165,7 +197,7 @@ func runEmbed(args []string) {
 	defer idx.Close()
 
 	// Create semantic searcher
-	searcher, err := embedding.NewSemanticSearcher(idx.DB(), ollamaClient)
+	searcher, err := embedding.NewSemanticSearcher(idx.DB(), embedder)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: creating semantic searcher: %v\n", err)
 		os.Exit(1)
@@ -320,7 +352,7 @@ func printUsage() {
 
 Usage:
   repo-search-index index [--force] [path]   Index symbols using ctags
-  repo-search-index embed [--force] [path]   Generate embeddings using Ollama
+  repo-search-index embed [options] [path]   Generate embeddings
   repo-search-index stats [path]             Show index statistics
   repo-search-index version                  Print version
   repo-search-index help                     Show this help
@@ -329,14 +361,23 @@ Index Options:
   --force    Force full reindex (default: incremental)
 
 Embed Options:
-  --force    Re-embed all chunks (ignore cache)
-  --model    Ollama model to use (default: nomic-embed-text)
+  --force      Re-embed all chunks (ignore cache)
+  --provider   Embedding provider (ollama, litellm, off)
+  --model      Embedding model (provider-specific default if empty)
+
+Environment Variables:
+  REPO_SEARCH_EMBEDDING_PROVIDER   Provider (ollama, litellm, off) [default: ollama]
+  REPO_SEARCH_OLLAMA_URL           Ollama URL [default: http://localhost:11434]
+  REPO_SEARCH_LITELLM_URL          LiteLLM URL [default: http://localhost:4000]
+  REPO_SEARCH_LITELLM_API_KEY      LiteLLM API key
+  REPO_SEARCH_EMBEDDING_MODEL      Model override
+  REPO_SEARCH_EMBEDDING_DIMENSIONS Dimensions override
 
 The index is stored in .repo_search/symbols.db relative to the indexed path.
 
 Requirements:
   - universal-ctags (for symbol extraction)
-  - Ollama (optional, for semantic search)
+  - Ollama OR LiteLLM (optional, for semantic search)
 
 Install:
   macOS:   brew install universal-ctags
