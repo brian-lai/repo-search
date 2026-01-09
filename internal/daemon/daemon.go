@@ -10,12 +10,15 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"repo-search/internal/registry"
+
 	"github.com/fsnotify/fsnotify"
+	ignore "github.com/sabhiram/go-gitignore"
 )
 
 // Daemon manages background file watching and indexing
@@ -180,15 +183,40 @@ func (d *Daemon) watchAllProjects() error {
 	return nil
 }
 
+// maxWatchesPerProject limits file watchers to prevent file descriptor exhaustion
+const maxWatchesPerProject = 1000
+
 // watchProject adds watches for all directories in a project
 func (d *Daemon) watchProject(projectPath string) error {
 	count := 0
+	var limitReached bool
+
+	// Load gitignore patterns for this project
+	gi := loadGitignore(projectPath)
+
 	err := filepath.WalkDir(projectPath, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}
 		if entry.IsDir() {
+			// Check hardcoded ignore list first
 			if isIgnoredDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+
+			// Check gitignore patterns
+			if gi != nil {
+				relPath, err := filepath.Rel(projectPath, path)
+				if err == nil && gi.MatchesPath(relPath+"/") {
+					return filepath.SkipDir
+				}
+			}
+
+			if count >= maxWatchesPerProject {
+				if !limitReached {
+					d.logger.Printf("Warning: reached max watches limit (%d) for %s", maxWatchesPerProject, projectPath)
+					limitReached = true
+				}
 				return filepath.SkipDir
 			}
 			if err := d.watcher.Add(path); err != nil {
@@ -358,18 +386,52 @@ func (d *Daemon) writePIDFile(path string) error {
 // isIgnoredDir returns true if the directory should be skipped
 func isIgnoredDir(name string) bool {
 	ignored := map[string]bool{
-		".git":          true,
-		".repo_search":  true,
-		"node_modules":  true,
-		"vendor":        true,
-		"dist":          true,
-		"build":         true,
-		"target":        true,
-		"__pycache__":   true,
-		".venv":         true,
-		"venv":          true,
-		".idea":         true,
-		".vscode":       true,
+		// Version control
+		".git": true,
+		".svn": true,
+		".hg":  true,
+
+		// IDE/Editor
+		".idea":   true,
+		".vscode": true,
+
+		// Build outputs
+		"dist":   true,
+		"build":  true,
+		"target": true,
+		"out":    true,
+
+		// Dependencies
+		"node_modules": true,
+		"vendor":       true,
+		".bundle":      true,
+		"Pods":         true,
+
+		// Python
+		"__pycache__": true,
+		".venv":       true,
+		"venv":        true,
+		"env":         true,
+		".tox":        true,
+		".pytest_cache": true,
+
+		// Ruby/Rails
+		"tmp":      true,
+		"log":      true,
+		"coverage": true,
+		"sorbet":   true,
+
+		// Generated/Cache
+		".cache":       true,
+		".repo_search": true,
+		".next":        true,
+		".nuxt":        true,
+		".turbo":       true,
+		".parcel-cache": true,
+
+		// Assets (often generated)
+		"public/assets": true,
+		"public/packs":  true,
 	}
 	return ignored[name]
 }
@@ -412,4 +474,49 @@ func isSubpath(child, parent string) bool {
 		return false
 	}
 	return len(rel) > 0 && rel[0] != '.'
+}
+
+// loadGitignore loads gitignore patterns from local .gitignore and global ~/.gitignore
+func loadGitignore(rootPath string) *ignore.GitIgnore {
+	var patterns []string
+
+	// Load global gitignore (~/.gitignore)
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		globalGitignore := filepath.Join(homeDir, ".gitignore")
+		if content, err := os.ReadFile(globalGitignore); err == nil {
+			for _, line := range splitLines(string(content)) {
+				if line != "" && !isComment(line) {
+					patterns = append(patterns, line)
+				}
+			}
+		}
+	}
+
+	// Load local .gitignore
+	localGitignore := filepath.Join(rootPath, ".gitignore")
+	if content, err := os.ReadFile(localGitignore); err == nil {
+		for _, line := range splitLines(string(content)) {
+			if line != "" && !isComment(line) {
+				patterns = append(patterns, line)
+			}
+		}
+	}
+
+	if len(patterns) == 0 {
+		return nil
+	}
+
+	return ignore.CompileIgnoreLines(patterns...)
+}
+
+// splitLines splits content into lines
+func splitLines(content string) []string {
+	return strings.Split(content, "\n")
+}
+
+// isComment returns true if line is a gitignore comment
+func isComment(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return len(trimmed) > 0 && trimmed[0] == '#'
 }
