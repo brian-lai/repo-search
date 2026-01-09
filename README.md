@@ -28,13 +28,31 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 
 ## Installation
 
-### Global Installation (Recommended)
+### Quick Start (Interactive)
 
-Install once, use in any project:
+```bash
+# Clone the repo
+git clone https://github.com/brian-lai/repo-search.git
+cd repo-search
+
+# Run the interactive installer
+./install.sh
+```
+
+The installer will:
+- Check dependencies (Go, ripgrep, ctags)
+- Let you choose an embedding provider (Ollama, LiteLLM, or none)
+- Configure the provider settings
+- Build and optionally install globally
+- Optionally index the current codebase
+
+### Manual Installation
+
+If you prefer manual setup:
 
 ```bash
 # Clone and build
-git clone https://github.com/yourorg/repo-search.git
+git clone https://github.com/brian-lai/repo-search.git
 cd repo-search
 make install
 
@@ -49,7 +67,7 @@ repo-search embed     # Optional: semantic search
 repo-search doctor    # Check everything works
 ```
 
-### Quick Start Commands
+### CLI Commands
 
 ```bash
 repo-search init      # Initialize repo-search in current directory
@@ -57,6 +75,7 @@ repo-search index     # Index symbols (requires ctags)
 repo-search embed     # Generate embeddings (requires Ollama)
 repo-search doctor    # Check installation and dependencies
 repo-search stats     # Show index statistics
+repo-search update    # Update to latest version from GitHub
 repo-search help      # Show all commands
 ```
 
@@ -66,7 +85,7 @@ For working on repo-search itself:
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourorg/repo-search.git
+git clone https://github.com/brian-lai/repo-search.git
 cd repo-search
 
 # Check dependencies
@@ -126,17 +145,19 @@ export REPO_SEARCH_LITELLM_API_KEY=your-api-key
 
 ### With Claude Code
 
-The `.mcp.json` file registers `repo-search` as an MCP server. When you enter this repository with Claude Code, the server is automatically available.
-
-**Using the wrapper script:**
+After running `repo-search init` in your project, the `.mcp.json` file registers `repo-search` as an MCP server. When you open the project with Claude Code, the server starts automatically.
 
 ```bash
-./bin/claude
+# In your project directory
+repo-search init      # Creates .mcp.json
+repo-search index     # Index symbols
+repo-search embed     # Optional: enable semantic search
+
+# Start Claude Code - repo-search is automatically available
+claude
 ```
 
-This runs indexing and then launches Claude Code.
-
-**Or use Claude Code directly** - the MCP server will be started automatically via `.mcp.json`.
+The MCP server provides Claude Code with search tools (`search_keyword`, `find_symbol`, `search_semantic`, etc.) that it can use to explore your codebase.
 
 ### Manual Testing
 
@@ -399,9 +420,7 @@ repo-search/
 │   └── repo-search-wrapper.sh # CLI wrapper for global install
 ├── templates/
 │   └── mcp.json              # Template for new projects
-├── bin/
-│   └── claude                # wrapper script
-├── .mcp.json                 # MCP server registration
+├── .mcp.json                 # MCP server registration (for this repo)
 ├── .repo_search/             # Index storage (gitignored)
 │   └── symbols.db            # SQLite database (symbols + embeddings)
 └── Makefile
@@ -469,6 +488,12 @@ your-project/
 - [x] `repo-search init` for new projects
 - [x] `repo-search doctor` for installation checks
 - [x] Template `.mcp.json` for projects
+
+### Phase 5 (In Progress)
+- [ ] Background indexing daemon (auto-reindex on file changes)
+- [ ] Central project registry (track all indexed projects)
+- [ ] `repo-search daemon start/stop/status` commands
+- [ ] `repo-search registry list/add/remove` commands
 
 ## License
 

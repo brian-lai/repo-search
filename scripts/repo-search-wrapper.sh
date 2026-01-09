@@ -77,7 +77,7 @@ cmd_index() {
     local target_dir="${1:-.}"
 
     echo -e "${CYAN}Indexing symbols in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" --index --path "$target_dir"
+    "$BIN_DIR/repo-search-index" index "$target_dir"
     success "Symbol indexing complete"
 }
 
@@ -92,7 +92,7 @@ cmd_embed() {
     fi
 
     echo -e "${CYAN}Generating embeddings in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" --embed --path "$target_dir"
+    "$BIN_DIR/repo-search-index" embed "$target_dir"
     success "Embedding complete"
 }
 
@@ -651,6 +651,19 @@ registry_help() {
     echo "  help        Show this help"
 }
 
+cmd_update() {
+    local source_dir="${REPO_SEARCH_SOURCE:-$HOME/dev/repo-search}"
+
+    if [[ ! -f "$source_dir/scripts/update.sh" ]]; then
+        error "Update script not found"
+        info "Set REPO_SEARCH_SOURCE to the location of your repo-search clone"
+        info "Default: $source_dir"
+        return 1
+    fi
+
+    exec "$source_dir/scripts/update.sh"
+}
+
 cmd_help() {
     echo -e "${CYAN}repo-search${NC} - MCP server for codebase search & navigation"
     echo ""
@@ -665,6 +678,7 @@ cmd_help() {
     echo "  stats           Show index statistics"
     echo "  daemon <cmd>    Manage background indexing daemon"
     echo "  registry <cmd>  Manage project registry"
+    echo "  update          Update to latest version from GitHub"
     echo "  help            Show this help message"
     echo ""
     echo "Daemon Commands:"
@@ -722,6 +736,9 @@ main() {
             ;;
         registry)
             cmd_registry "$@"
+            ;;
+        update)
+            cmd_update "$@"
             ;;
         help|--help|-h)
             cmd_help
