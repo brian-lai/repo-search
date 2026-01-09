@@ -71,7 +71,7 @@ cmd_index() {
     local target_dir="${1:-.}"
 
     echo -e "${CYAN}Indexing symbols in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" --index --path "$target_dir"
+    "$BIN_DIR/repo-search-index" index "$target_dir"
     success "Symbol indexing complete"
 }
 
@@ -86,7 +86,7 @@ cmd_embed() {
     fi
 
     echo -e "${CYAN}Generating embeddings in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" --embed --path "$target_dir"
+    "$BIN_DIR/repo-search-index" embed "$target_dir"
     success "Embedding complete"
 }
 
