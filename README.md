@@ -28,9 +28,27 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 
 ## Installation
 
-### Global Installation (Recommended)
+### Quick Start (Interactive)
 
-Install once, use in any project:
+```bash
+# Clone the repo
+git clone https://github.com/brian-lai/repo-search.git
+cd repo-search
+
+# Run the interactive installer
+./install.sh
+```
+
+The installer will:
+- Check dependencies (Go, ripgrep, ctags)
+- Let you choose an embedding provider (Ollama, LiteLLM, or none)
+- Configure the provider settings
+- Build and optionally install globally
+- Optionally index the current codebase
+
+### Manual Installation
+
+If you prefer manual setup:
 
 ```bash
 # Clone and build
@@ -49,7 +67,7 @@ repo-search embed     # Optional: semantic search
 repo-search doctor    # Check everything works
 ```
 
-### Quick Start Commands
+### CLI Commands
 
 ```bash
 repo-search init      # Initialize repo-search in current directory
