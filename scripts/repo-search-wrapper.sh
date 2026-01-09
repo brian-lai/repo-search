@@ -9,6 +9,7 @@
 #   init           Initialize repo-search in current directory
 #   doctor         Check installation and dependencies
 #   stats          Show index statistics
+#   migrate        Discover existing indexes and register them
 #   daemon         Manage background indexing daemon
 #   registry       Manage project registry
 #   help           Show this help message
@@ -651,6 +652,185 @@ registry_help() {
     echo "  help        Show this help"
 }
 
+#
+# Migrate command - discover existing indexes and register them
+#
+cmd_migrate() {
+    local dry_run=false
+    local search_paths=()
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run|-n)
+                dry_run=true
+                shift
+                ;;
+            --help|-h)
+                migrate_help
+                return 0
+                ;;
+            *)
+                search_paths+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Default search paths if none provided
+    if [[ ${#search_paths[@]} -eq 0 ]]; then
+        search_paths=(
+            "$HOME/dev"
+            "$HOME/projects"
+            "$HOME/code"
+            "$HOME/src"
+            "$HOME/repos"
+            "$HOME/workspace"
+            "$HOME/work"
+            "$HOME/Documents/dev"
+            "$HOME/Documents/projects"
+            "$HOME/Documents/code"
+        )
+    fi
+
+    echo -e "${CYAN}Scanning for existing repo-search indexes...${NC}"
+    echo ""
+
+    local found=()
+    local already_registered=()
+    local new_projects=()
+
+    # Load existing registry paths for comparison
+    local registered_paths=""
+    if [[ -f "$REGISTRY_FILE" ]]; then
+        registered_paths=$(python3 -c "
+import json
+try:
+    with open('$REGISTRY_FILE') as f:
+        data = json.load(f)
+    for p in data.get('projects', []):
+        print(p.get('path', ''))
+except:
+    pass
+" 2>/dev/null)
+    fi
+
+    # Scan each search path
+    for base_path in "${search_paths[@]}"; do
+        if [[ ! -d "$base_path" ]]; then
+            continue
+        fi
+
+        # Find all .repo_search directories (max depth 3 to avoid deep recursion)
+        while IFS= read -r index_dir; do
+            if [[ -n "$index_dir" ]]; then
+                # Get project directory (parent of .repo_search)
+                local project_dir=$(dirname "$index_dir")
+                found+=("$project_dir")
+
+                # Check if already registered
+                if echo "$registered_paths" | grep -qF "$project_dir"; then
+                    already_registered+=("$project_dir")
+                else
+                    new_projects+=("$project_dir")
+                fi
+            fi
+        done < <(find "$base_path" -maxdepth 4 -type d -name ".repo_search" 2>/dev/null)
+    done
+
+    # Report findings
+    echo "Search paths scanned:"
+    for path in "${search_paths[@]}"; do
+        if [[ -d "$path" ]]; then
+            info "$path"
+        else
+            info "$path ${YELLOW}(not found)${NC}"
+        fi
+    done
+    echo ""
+
+    if [[ ${#found[@]} -eq 0 ]]; then
+        info "No existing indexes found"
+        echo ""
+        info "To index a project manually:"
+        info "  cd /path/to/project"
+        info "  repo-search init && repo-search index"
+        return 0
+    fi
+
+    echo "Found ${#found[@]} project(s) with existing indexes:"
+    echo ""
+
+    # Show already registered
+    if [[ ${#already_registered[@]} -gt 0 ]]; then
+        echo -e "${GREEN}Already registered (${#already_registered[@]}):${NC}"
+        for project in "${already_registered[@]}"; do
+            info "✓ $(basename "$project") - $project"
+        done
+        echo ""
+    fi
+
+    # Show new projects to migrate
+    if [[ ${#new_projects[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}New projects to register (${#new_projects[@]}):${NC}"
+        for project in "${new_projects[@]}"; do
+            info "○ $(basename "$project") - $project"
+        done
+        echo ""
+
+        if [[ "$dry_run" == "true" ]]; then
+            info "Dry run - no changes made"
+            info "Run without --dry-run to register these projects"
+        else
+            echo -e "${CYAN}Registering new projects...${NC}"
+            echo ""
+
+            local success_count=0
+            local fail_count=0
+
+            for project in "${new_projects[@]}"; do
+                if registry_add "$project" 2>/dev/null; then
+                    success "Registered: $(basename "$project")"
+                    ((success_count++))
+                else
+                    error "Failed to register: $(basename "$project")"
+                    ((fail_count++))
+                fi
+            done
+
+            echo ""
+            success "Migration complete: $success_count registered, $fail_count failed"
+
+            # Suggest starting daemon
+            if [[ $success_count -gt 0 ]] && ! daemon_is_running; then
+                echo ""
+                info "Start the daemon to auto-reindex on file changes:"
+                info "  repo-search daemon start"
+            fi
+        fi
+    else
+        success "All found projects are already registered"
+    fi
+}
+
+migrate_help() {
+    echo "Usage: repo-search migrate [options] [paths...]"
+    echo ""
+    echo "Scan for existing .repo_search indexes and register them in the central registry."
+    echo ""
+    echo "Options:"
+    echo "  --dry-run, -n   Show what would be registered without making changes"
+    echo "  --help, -h      Show this help"
+    echo ""
+    echo "Arguments:"
+    echo "  paths           Directories to scan (default: ~/dev, ~/projects, ~/code, etc.)"
+    echo ""
+    echo "Examples:"
+    echo "  repo-search migrate                    # Scan default locations"
+    echo "  repo-search migrate --dry-run         # Preview without registering"
+    echo "  repo-search migrate ~/work ~/personal # Scan specific directories"
+}
+
 cmd_update() {
     local source_dir="${REPO_SEARCH_SOURCE:-$HOME/dev/repo-search}"
 
@@ -676,6 +856,7 @@ cmd_help() {
     echo "  init [-f]       Create .mcp.json in current directory"
     echo "  doctor          Check installation and dependencies"
     echo "  stats           Show index statistics"
+    echo "  migrate         Discover existing indexes and register them"
     echo "  daemon <cmd>    Manage background indexing daemon"
     echo "  registry <cmd>  Manage project registry"
     echo "  update          Update to latest version from GitHub"
@@ -701,6 +882,7 @@ cmd_help() {
     echo "Quick Start:"
     echo "  repo-search init          # Initialize project"
     echo "  repo-search index         # Index symbols"
+    echo "  repo-search migrate       # Register existing indexes"
     echo "  repo-search daemon start  # Start background daemon"
     echo "  claude                    # Start Claude Code"
 }
@@ -730,6 +912,9 @@ main() {
             ;;
         stats)
             cmd_stats "$@"
+            ;;
+        migrate)
+            cmd_migrate "$@"
             ;;
         daemon)
             cmd_daemon "$@"
