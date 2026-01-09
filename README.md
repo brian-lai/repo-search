@@ -75,6 +75,7 @@ repo-search index     # Index symbols (requires ctags)
 repo-search embed     # Generate embeddings (requires Ollama)
 repo-search doctor    # Check installation and dependencies
 repo-search stats     # Show index statistics
+repo-search update    # Update to latest version from GitHub
 repo-search help      # Show all commands
 ```
 
