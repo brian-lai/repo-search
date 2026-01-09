@@ -1,7 +1,12 @@
 BINARY=dist/repo-search
 INDEXER=dist/repo-search-index
 
-.PHONY: build mcp index embed doctor clean test
+# Installation prefix (default: ~/.local)
+PREFIX ?= $(HOME)/.local
+BIN_DIR = $(PREFIX)/bin
+SHARE_DIR = $(PREFIX)/share/repo-search
+
+.PHONY: build mcp index embed doctor clean test install uninstall
 
 # Build both binaries
 build:
@@ -85,3 +90,31 @@ test:
 # Clean build artifacts
 clean:
 	rm -rf dist .repo_search
+
+# Install globally
+install: build
+	@echo "Installing to $(PREFIX)..."
+	@mkdir -p $(BIN_DIR) $(SHARE_DIR)/templates
+	@cp $(BINARY) $(BIN_DIR)/repo-search-mcp
+	@cp $(INDEXER) $(BIN_DIR)/repo-search-index
+	@cp scripts/repo-search-wrapper.sh $(BIN_DIR)/repo-search
+	@chmod +x $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index
+	@cp templates/mcp.json $(SHARE_DIR)/templates/
+	@echo ""
+	@echo "✓ Installed to $(PREFIX)"
+	@echo ""
+	@echo "Make sure $(BIN_DIR) is in your PATH:"
+	@echo "  export PATH=\"$(BIN_DIR):\$$PATH\""
+	@echo ""
+	@echo "Quick start:"
+	@echo "  cd /path/to/your/project"
+	@echo "  repo-search init"
+	@echo "  repo-search index"
+	@echo "  repo-search doctor"
+
+# Uninstall
+uninstall:
+	@echo "Uninstalling from $(PREFIX)..."
+	@rm -f $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index
+	@rm -rf $(SHARE_DIR)
+	@echo "✓ Uninstalled"

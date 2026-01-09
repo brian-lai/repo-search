@@ -28,6 +28,42 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 
 ## Installation
 
+### Global Installation (Recommended)
+
+Install once, use in any project:
+
+```bash
+# Clone and build
+git clone https://github.com/yourorg/repo-search.git
+cd repo-search
+make install
+
+# Add to PATH (add to ~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Use in any project
+cd /path/to/your/project
+repo-search init      # Creates .mcp.json
+repo-search index     # Index symbols
+repo-search embed     # Optional: semantic search
+repo-search doctor    # Check everything works
+```
+
+### Quick Start Commands
+
+```bash
+repo-search init      # Initialize repo-search in current directory
+repo-search index     # Index symbols (requires ctags)
+repo-search embed     # Generate embeddings (requires Ollama)
+repo-search doctor    # Check installation and dependencies
+repo-search stats     # Show index statistics
+repo-search help      # Show all commands
+```
+
+### Development Setup
+
+For working on repo-search itself:
+
 ```bash
 # Clone the repo
 git clone https://github.com/yourorg/repo-search.git
@@ -284,6 +320,8 @@ Combined keyword + semantic search with weighted scoring.
 | Target           | Description                              |
 |------------------|------------------------------------------|
 | `make build`     | Build both binaries to `dist/`           |
+| `make install`   | Install globally to `~/.local/bin`       |
+| `make uninstall` | Remove installed files                   |
 | `make mcp`       | Build and run the MCP server             |
 | `make index`     | Index symbols (requires ctags)           |
 | `make embed`     | Generate embeddings (requires Ollama)    |
@@ -357,12 +395,43 @@ repo-search/
 │   │   ├── symbols/          # ctags + SQLite symbol index
 │   │   └── hybrid/           # Combined keyword + semantic search
 │   └── tools/                # MCP tool definitions
+├── scripts/
+│   └── repo-search-wrapper.sh # CLI wrapper for global install
+├── templates/
+│   └── mcp.json              # Template for new projects
 ├── bin/
 │   └── claude                # wrapper script
 ├── .mcp.json                 # MCP server registration
 ├── .repo_search/             # Index storage (gitignored)
 │   └── symbols.db            # SQLite database (symbols + embeddings)
 └── Makefile
+```
+
+### Installed Files
+
+After `make install`, files are placed at:
+
+```
+~/.local/
+├── bin/
+│   ├── repo-search          # Main CLI (wrapper script)
+│   ├── repo-search-mcp      # MCP server binary
+│   └── repo-search-index    # Indexer binary
+└── share/
+    └── repo-search/
+        └── templates/
+            └── mcp.json     # Template for new projects
+```
+
+### Per-Project Files
+
+When you run `repo-search init` in a project:
+
+```
+your-project/
+├── .mcp.json                # MCP server registration (created by init)
+└── .repo_search/            # Index storage (created by index)
+    └── symbols.db           # SQLite database
 ```
 
 ## Roadmap
@@ -393,6 +462,13 @@ repo-search/
 - [x] Graceful degradation when Ollama unavailable
 - [x] Embedding adapter layer for provider swapping
 - [x] LiteLLM support for OpenAI-compatible APIs
+
+### Phase 4 (Complete)
+- [x] Global installation (`make install`)
+- [x] CLI wrapper script with subcommands
+- [x] `repo-search init` for new projects
+- [x] `repo-search doctor` for installation checks
+- [x] Template `.mcp.json` for projects
 
 ## License
 
