@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "repo-search": {
+      "command": "repo-search",
+      "args": ["mcp"]
+    }
+  }
+}
