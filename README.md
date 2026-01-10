@@ -8,7 +8,7 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 - **`get_file`** - File reading with optional line-range slicing
 - **`find_symbol`** - Symbol lookup (functions, types, etc.) via ctags + SQLite
 - **`list_defs_in_file`** - List all definitions in a file
-- **`search_semantic`** - Semantic code search via local embeddings (Ollama)
+- **`search_semantic`** - Semantic code search via local embeddings
 - **`hybrid_search`** - Combined keyword + semantic search
 
 ## Quick Start
@@ -39,7 +39,7 @@ See [Installation Guide](docs/installation.md) for detailed setup instructions.
 | Go 1.21+ | Yes | Building from source |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) | Yes | Keyword search |
 | [universal-ctags](https://github.com/universal-ctags/ctags) | No | Symbol indexing |
-| [Ollama](https://ollama.ai) | No | Semantic search |
+| [Ollama](https://ollama.ai) / [LMStudio](https://lmstudio.ai) / [LiteLLM](https://github.com/BerriAI/litellm) | No | Semantic search |
 
 ## CLI Commands
 
@@ -89,7 +89,7 @@ List all symbols in a file:
 
 ### search_semantic
 
-Search using natural language (requires Ollama):
+Search using natural language (requires embedding provider):
 
 ```json
 {"query": "error handling logic", "limit": 10}
@@ -108,12 +108,22 @@ Combined keyword + semantic search:
 Configure embedding provider via environment variables:
 
 ```bash
-# Use Ollama (default)
+# Use Ollama (default, recommended)
 export REPO_SEARCH_EMBEDDING_PROVIDER=ollama
+export REPO_SEARCH_OLLAMA_URL=http://localhost:11434  # optional
 
-# Or use LiteLLM/OpenAI
+# Or use LMStudio
+export REPO_SEARCH_EMBEDDING_PROVIDER=lmstudio
+export REPO_SEARCH_LMSTUDIO_URL=http://localhost:1234  # optional
+export REPO_SEARCH_EMBEDDING_MODEL=nomic-embed-code-GGUF  # optional
+
+# Or use LiteLLM (OpenAI, Azure, etc.)
 export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
-export REPO_SEARCH_LITELLM_API_KEY=sk-...
+export REPO_SEARCH_LITELLM_URL=http://localhost:4000  # optional
+export REPO_SEARCH_LITELLM_API_KEY=sk-...  # if required
+
+# Disable embeddings
+export REPO_SEARCH_EMBEDDING_PROVIDER=off
 ```
 
 See [Installation Guide](docs/installation.md#configuration) for all options.

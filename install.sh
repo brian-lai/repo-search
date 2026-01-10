@@ -92,7 +92,8 @@ echo -e "Semantic search requires an embedding provider.\n"
 echo "Select an embedding provider:"
 echo -e "  ${GREEN}1)${NC} Ollama (local, free, recommended)"
 echo -e "  ${GREEN}2)${NC} LiteLLM (OpenAI, Azure, Bedrock, etc.)"
-echo -e "  ${GREEN}3)${NC} None (disable semantic search)"
+echo -e "  ${GREEN}3)${NC} LMStudio (local OpenAI-compatible API)"
+echo -e "  ${GREEN}4)${NC} None (disable semantic search)"
 echo ""
 
 read -p "$(echo -e ${BLUE}?${NC}) Your choice [1]: " PROVIDER_CHOICE
@@ -102,6 +103,7 @@ EMBEDDING_PROVIDER=""
 OLLAMA_URL=""
 LITELLM_URL=""
 LITELLM_API_KEY=""
+LMSTUDIO_URL=""
 EMBEDDING_MODEL=""
 
 case $PROVIDER_CHOICE in
@@ -176,6 +178,31 @@ case $PROVIDER_CHOICE in
         ;;
 
     3)
+        EMBEDDING_PROVIDER="lmstudio"
+        echo ""
+
+        info "LMStudio provides a local OpenAI-compatible API for embeddings."
+        info "See: https://lmstudio.ai"
+        echo ""
+
+        read -p "$(echo -e ${BLUE}?${NC}) LMStudio URL [http://localhost:1234]: " LMSTUDIO_URL
+        LMSTUDIO_URL=${LMSTUDIO_URL:-http://localhost:1234}
+
+        read -p "$(echo -e ${BLUE}?${NC}) Embedding model [nomic-embed-code-GGUF]: " EMBEDDING_MODEL
+        EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-code-GGUF}
+
+        # Test connection
+        echo ""
+        if curl -s "${LMSTUDIO_URL}/v1/models" &> /dev/null; then
+            success "LMStudio is reachable at $LMSTUDIO_URL"
+        else
+            warn "Could not connect to LMStudio at $LMSTUDIO_URL"
+            info "Make sure LMStudio is running and has an embedding model loaded"
+            info "Then use 'make embed' to generate embeddings"
+        fi
+        ;;
+
+    4)
         EMBEDDING_PROVIDER="off"
         echo ""
         warn "Semantic search will be disabled"
@@ -198,7 +225,7 @@ cat > "$CONFIG_FILE" << EOF
 # Source this file or add to your shell profile:
 #   source .env.repo-search
 
-# Embedding provider: ollama, litellm, or off
+# Embedding provider: ollama, litellm, lmstudio, or off
 export REPO_SEARCH_EMBEDDING_PROVIDER="$EMBEDDING_PROVIDER"
 EOF
 
@@ -215,6 +242,13 @@ elif [[ $EMBEDDING_PROVIDER == "litellm" ]]; then
 # LiteLLM configuration
 export REPO_SEARCH_LITELLM_URL="$LITELLM_URL"
 export REPO_SEARCH_LITELLM_API_KEY="$LITELLM_API_KEY"
+export REPO_SEARCH_EMBEDDING_MODEL="$EMBEDDING_MODEL"
+EOF
+elif [[ $EMBEDDING_PROVIDER == "lmstudio" ]]; then
+    cat >> "$CONFIG_FILE" << EOF
+
+# LMStudio configuration
+export REPO_SEARCH_LMSTUDIO_URL="$LMSTUDIO_URL"
 export REPO_SEARCH_EMBEDDING_MODEL="$EMBEDDING_MODEL"
 EOF
 fi
@@ -280,6 +314,8 @@ if [[ $EMBEDDING_PROVIDER == "ollama" ]]; then
     echo -e "Embedding provider: ${GREEN}Ollama${NC} ($EMBEDDING_MODEL)"
 elif [[ $EMBEDDING_PROVIDER == "litellm" ]]; then
     echo -e "Embedding provider: ${GREEN}LiteLLM${NC} ($EMBEDDING_MODEL)"
+elif [[ $EMBEDDING_PROVIDER == "lmstudio" ]]; then
+    echo -e "Embedding provider: ${GREEN}LMStudio${NC} ($EMBEDDING_MODEL)"
 else
     echo -e "Embedding provider: ${YELLOW}Disabled${NC}"
 fi
