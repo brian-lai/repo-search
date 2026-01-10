@@ -11,24 +11,33 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 - **`search_semantic`** - Semantic code search via local embeddings (Ollama)
 - **`hybrid_search`** - Combined keyword + semantic search
 
-## Quick Start
+## Installation
 
 ```bash
-# Clone and install
+# Clone and build
 git clone https://github.com/brian-lai/repo-search.git
 cd repo-search
-./install.sh
+make install          # Installs to ~/.local/bin
 ```
 
-Then in any project:
+Make sure `~/.local/bin` is in your PATH:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+## Quick Start
+
+In any project:
 
 ```bash
 cd /path/to/your/project
-repo-search init      # Creates .mcp.json
+repo-search init      # Interactive setup (creates .mcp.json and .env.repo-search)
 repo-search index     # Index symbols
-repo-search embed     # Optional: enable semantic search
+repo-search embed     # Generate embeddings
 claude                # Start Claude Code
 ```
+
+The `repo-search init` command will prompt you to configure an embedding provider (Ollama, LiteLLM, LMStudio, or none) for that project.
 
 See [Installation Guide](docs/installation.md) for detailed setup instructions.
 
@@ -105,16 +114,32 @@ Combined keyword + semantic search:
 
 ## Configuration
 
-Configure embedding provider via environment variables:
+Each project has its own `.env.repo-search` configuration file created by `repo-search init`. This file configures the embedding provider for that project.
+
+Example configurations:
 
 ```bash
-# Use Ollama (default)
-export REPO_SEARCH_EMBEDDING_PROVIDER=ollama
+# Ollama (default)
+export REPO_SEARCH_EMBEDDING_PROVIDER="ollama"
+export REPO_SEARCH_OLLAMA_URL="http://localhost:11434"
+export REPO_SEARCH_EMBEDDING_MODEL="nomic-embed-text"
 
-# Or use LiteLLM/OpenAI
-export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
-export REPO_SEARCH_LITELLM_API_KEY=sk-...
+# LMStudio
+export REPO_SEARCH_EMBEDDING_PROVIDER="lmstudio"
+export REPO_SEARCH_LMSTUDIO_URL="http://localhost:1234"
+export REPO_SEARCH_EMBEDDING_MODEL="nomic-embed-code-GGUF"
+
+# LiteLLM (OpenAI, Azure, etc.)
+export REPO_SEARCH_EMBEDDING_PROVIDER="litellm"
+export REPO_SEARCH_LITELLM_URL="http://localhost:4000"
+export REPO_SEARCH_LITELLM_API_KEY="sk-..."
+export REPO_SEARCH_EMBEDDING_MODEL="text-embedding-3-small"
+
+# Disabled
+export REPO_SEARCH_EMBEDDING_PROVIDER="off"
 ```
+
+You can also create a global config at `~/.config/repo-search/config.env` which will be used as a fallback for projects without a local config.
 
 See [Installation Guide](docs/installation.md#configuration) for all options.
 

@@ -1,7 +1,13 @@
 #!/bin/bash
 #
-# repo-search installation script
-# Interactive setup for the MCP server
+# repo-search development setup script
+#
+# This script is for DEVELOPERS working on the repo-search codebase itself.
+# It builds repo-search and configures it to index this repository.
+#
+# For END USERS installing repo-search:
+#   Run: make install
+#   Then: cd /path/to/your/project && repo-search init
 #
 
 set -e
@@ -19,10 +25,14 @@ CONFIG_FILE=".env.repo-search"
 
 echo -e "${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║                     repo-search installer                     ║"
-echo "║         MCP server for codebase search & navigation           ║"
+echo "║              repo-search development setup                    ║"
+echo "║         Configure repo-search to index itself                 ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
+echo ""
+warn "This script is for developers working on repo-search itself."
+info "End users should run: make install"
+echo ""
 
 #
 # Helper functions
