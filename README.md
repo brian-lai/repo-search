@@ -43,6 +43,8 @@ See [Installation Guide](docs/installation.md) for detailed setup instructions.
 
 ## CLI Commands
 
+### Main Commands
+
 ```bash
 repo-search init      # Initialize in current directory
 repo-search index     # Index symbols
@@ -51,6 +53,14 @@ repo-search doctor    # Check dependencies
 repo-search stats     # Show index statistics
 repo-search update    # Update to latest version
 repo-search help      # Show all commands
+```
+
+### Evaluation Commands
+
+```bash
+repo-search-eval run --repo <path>     # Run performance evaluation
+repo-search-eval report                # Show latest results
+repo-search-eval list                  # List available test cases
 ```
 
 ## MCP Tools
@@ -118,9 +128,26 @@ export REPO_SEARCH_LITELLM_API_KEY=sk-...
 
 See [Installation Guide](docs/installation.md#configuration) for all options.
 
+## Performance Evaluation
+
+repo-search includes an evaluation tool to measure the performance improvement of MCP tools vs. standard CLI tools (grep, find, etc.) when working with Claude Code.
+
+```bash
+# Run evaluations on any repository
+repo-search-eval run --repo /path/to/project
+
+# View results
+repo-search-eval report
+```
+
+Eval cases are stored in `.repo-search/evals/cases/` (auto-added to .gitignore) so you can version-control test cases while keeping results local.
+
+See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creating test cases, understanding metrics, and best practices.
+
 ## Documentation
 
 - [Installation Guide](docs/installation.md) - Detailed setup and configuration
+- [Evaluation Guide](docs/evaluation.md) - Performance testing and benchmarking
 - [Architecture](docs/architecture.md) - Internal design and data flow
 - [MCP Compatibility](docs/mcp-compatibility.md) - Supported tools and multi-tool roadmap
 

@@ -25,14 +25,33 @@ func NewRunner(config EvalConfig) *Runner {
 }
 
 // LoadTestCases loads test cases from JSONL files in the cases directory.
+// It first checks for a repo-specific .repo-search/evals/cases directory,
+// and falls back to the provided casesDir if not found.
 func (r *Runner) LoadTestCases(casesDir string) ([]TestCase, error) {
 	var cases []TestCase
 
-	// Find all JSONL files
-	files, err := filepath.Glob(filepath.Join(casesDir, "*.jsonl"))
+	// Check for repo-specific eval cases first
+	repoEvalDir := filepath.Join(r.config.RepoPath, ".repo-search", "evals", "cases")
+	if info, err := os.Stat(repoEvalDir); err == nil && info.IsDir() {
+		casesDir = repoEvalDir
+	}
+
+	// Find all JSONL files (including in subdirectories)
+	var files []string
+
+	// First, try direct JSONL files in the cases directory
+	directFiles, err := filepath.Glob(filepath.Join(casesDir, "*.jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("finding test case files: %w", err)
 	}
+	files = append(files, directFiles...)
+
+	// Then, look for JSONL files in subdirectories
+	subDirFiles, err := filepath.Glob(filepath.Join(casesDir, "*", "*.jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("finding test case files in subdirectories: %w", err)
+	}
+	files = append(files, subDirFiles...)
 
 	for _, file := range files {
 		fileCases, err := r.loadJSONLFile(file)
@@ -225,13 +244,17 @@ func (r *Runner) buildClaudeArgs(tc TestCase, mode ExecutionMode) []string {
 }
 
 // SaveResults writes the raw results to a JSON file.
+// It always uses the repo-specific .repo-search/evals/results directory.
 func (r *Runner) SaveResults(report *EvalReport) error {
-	if err := os.MkdirAll(r.config.OutputDir, 0755); err != nil {
+	// Always use repo-specific results directory to keep results with cases
+	outputDir := filepath.Join(r.config.RepoPath, ".repo-search", "evals", "results")
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
 
 	filename := fmt.Sprintf("%s-results.json", time.Now().Format("2006-01-02-150405"))
-	path := filepath.Join(r.config.OutputDir, filename)
+	path := filepath.Join(outputDir, filename)
 
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -248,4 +271,40 @@ func (r *Runner) SaveResults(report *EvalReport) error {
 
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
+}
+
+// EnsureGitignore ensures the .repo-search directory is in the target repo's .gitignore.
+func (r *Runner) EnsureGitignore() error {
+	gitignorePath := filepath.Join(r.config.RepoPath, ".gitignore")
+
+	// Read existing .gitignore if it exists
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading .gitignore: %w", err)
+	}
+
+	// Check if .repo-search is already in .gitignore
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == ".repo-search" || trimmed == ".repo-search/" {
+			return nil // Already exists
+		}
+	}
+
+	// Append .repo-search to .gitignore
+	var newContent string
+	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
+		newContent = string(content) + "\n.repo-search/\n"
+	} else if len(content) > 0 {
+		newContent = string(content) + ".repo-search/\n"
+	} else {
+		newContent = ".repo-search/\n"
+	}
+
+	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("writing .gitignore: %w", err)
+	}
+
+	return nil
 }
