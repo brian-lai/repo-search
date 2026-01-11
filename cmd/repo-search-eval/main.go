@@ -65,6 +65,11 @@ func runEval(args []string) {
 		fmt.Fprintf(os.Stderr, "error: invalid repo path: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Check if evaluating a different repo before we update config
+	cwd, _ := os.Getwd()
+	isExternalRepo := absRepoPath != cwd
+
 	config.RepoPath = absRepoPath
 
 	absCasesDir, err := filepath.Abs(*casesDir)
@@ -75,6 +80,14 @@ func runEval(args []string) {
 
 	// Create runner and load test cases
 	runner := evals.NewRunner(config)
+
+	// Ensure .repo-search is in .gitignore when running against a target repo
+	if isExternalRepo {
+		if err := runner.EnsureGitignore(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not update .gitignore: %v\n", err)
+		}
+	}
+
 	cases, err := runner.LoadTestCases(absCasesDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading test cases: %v\n", err)
@@ -82,7 +95,28 @@ func runEval(args []string) {
 	}
 
 	if len(cases) == 0 {
-		fmt.Fprintln(os.Stderr, "no test cases found")
+		fmt.Fprintln(os.Stderr, "\n"+strings.Repeat("=", 80))
+		fmt.Fprintln(os.Stderr, "ERROR: No test cases found!")
+		fmt.Fprintln(os.Stderr, strings.Repeat("=", 80))
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintf(os.Stderr, "The eval runner could not find any test cases in:\n")
+		fmt.Fprintf(os.Stderr, "  %s\n", absCasesDir)
+		fmt.Fprintln(os.Stderr, "")
+
+		// Check if we're evaluating a different repo
+		repoEvalDir := filepath.Join(absRepoPath, ".repo-search", "evals", "cases")
+		if absRepoPath != "." {
+			fmt.Fprintf(os.Stderr, "For repo-specific eval cases, create them in:\n")
+			fmt.Fprintf(os.Stderr, "  %s\n", repoEvalDir)
+			fmt.Fprintln(os.Stderr, "")
+		}
+
+		fmt.Fprintln(os.Stderr, "To create eval cases for this repository, you can use an AI assistant with:")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  \"Create eval test cases for this repository in .repo-search/evals/cases/")
+		fmt.Fprintln(os.Stderr, "   Include search, navigation, and code understanding test cases in JSONL format.\"")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, strings.Repeat("=", 80))
 		os.Exit(1)
 	}
 
@@ -141,17 +175,33 @@ func showReport(args []string) {
 
 func listCases(args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
+	repoPath := fs.String("repo", ".", "Path to repository to evaluate")
 	casesDir := fs.String("cases", "evals/cases", "Directory containing test case JSONL files")
 	category := fs.String("category", "", "Filter by category")
 	fs.Parse(args)
 
 	config := evals.DefaultConfig()
+	config.RepoPath = *repoPath
 	if *category != "" {
 		config.Categories = []string{*category}
 	}
 
+	// Convert to absolute path
+	absRepoPath, err := filepath.Abs(config.RepoPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: invalid repo path: %v\n", err)
+		os.Exit(1)
+	}
+	config.RepoPath = absRepoPath
+
+	absCasesDir, err := filepath.Abs(*casesDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: invalid cases dir: %v\n", err)
+		os.Exit(1)
+	}
+
 	runner := evals.NewRunner(config)
-	cases, err := runner.LoadTestCases(*casesDir)
+	cases, err := runner.LoadTestCases(absCasesDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading test cases: %v\n", err)
 		os.Exit(1)
