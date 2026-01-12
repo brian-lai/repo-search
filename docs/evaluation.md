@@ -71,7 +71,7 @@ repo-search-eval report [options]
 repo-search-eval report
 
 # Show a specific report
-repo-search-eval report --results .repo-search/evals/results/2024-01-10-120000-results.json
+repo-search-eval report --results .repo_search/evals/results/2024-01-10-120000-results.json
 ```
 
 ### list
@@ -106,11 +106,11 @@ When you run evals on a repository without test cases, you'll see a helpful erro
 
 ### Repository-Specific Storage
 
-Eval data is stored in a `.repo-search/` directory within the target repository:
+Eval data is stored in a `.repo_search/` directory within the target repository:
 
 ```
 your-project/
-├── .repo-search/           # Auto-added to .gitignore
+├── .repo_search/           # Auto-added to .gitignore
 │   └── evals/
 │       ├── cases/          # Test case JSONL files
 │       │   ├── search.jsonl
@@ -130,10 +130,10 @@ This approach:
 Create the directory structure and add JSONL files:
 
 ```bash
-mkdir -p .repo-search/evals/cases
+mkdir -p .repo_search/evals/cases
 ```
 
-Create test case files (e.g., `.repo-search/evals/cases/search.jsonl`):
+Create test case files (e.g., `.repo_search/evals/cases/search.jsonl`):
 
 ```jsonl
 {"id":"search-001","category":"search","description":"Find error handling","prompt":"Find all error handling code in this repository","ground_truth":{"files":["internal/errors.go","pkg/handler.go"]},"difficulty":"easy"}
@@ -145,7 +145,7 @@ Create test case files (e.g., `.repo-search/evals/cases/search.jsonl`):
 Use Claude or another AI assistant to generate test cases:
 
 ```
-Create eval test cases for this repository in .repo-search/evals/cases/
+Create eval test cases for this repository in .repo_search/evals/cases/
 Include search, navigation, and code understanding test cases in JSONL format.
 
 Categories:
@@ -327,8 +327,8 @@ Improvements:
 1. **Update with code changes** - Keep ground truth in sync
 2. **Add new tests** - When you encounter interesting queries
 3. **Remove stale tests** - Delete tests for removed features
-4. **Version control cases** - Commit `.repo-search/evals/cases/` to git
-5. **Ignore results** - Keep `.repo-search/` in .gitignore (results are auto-added)
+4. **Version control cases** - Commit `.repo_search/evals/cases/` to git
+5. **Ignore results** - Keep `.repo_search/` in .gitignore (results are auto-added)
 
 ## Troubleshooting
 
@@ -337,7 +337,7 @@ Improvements:
 **Error:**
 ```
 ERROR: No test cases found!
-The eval runner could not find any test cases in: /path/to/repo/.repo-search/evals/cases
+The eval runner could not find any test cases in: /path/to/repo/.repo_search/evals/cases
 ```
 
 **Solution:** Create test cases using the manual or AI-assisted approach above.
@@ -371,7 +371,7 @@ If MCP tools aren't reducing tokens:
 Organize test cases by feature or module:
 
 ```
-.repo-search/evals/cases/
+.repo_search/evals/cases/
 ├── auth/
 │   ├── search.jsonl
 │   └── navigate.jsonl
@@ -403,14 +403,14 @@ Run evals before and after upgrading repo-search:
 ```bash
 # Before upgrade
 repo-search-eval run --repo .
-cp .repo-search/evals/results/latest.json before.json
+cp .repo_search/evals/results/latest.json before.json
 
 # Upgrade
 repo-search update
 
 # After upgrade
 repo-search-eval run --repo .
-cp .repo-search/evals/results/latest.json after.json
+cp .repo_search/evals/results/latest.json after.json
 
 # Compare (manually or with custom script)
 ```

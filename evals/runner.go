@@ -25,13 +25,13 @@ func NewRunner(config EvalConfig) *Runner {
 }
 
 // LoadTestCases loads test cases from JSONL files in the cases directory.
-// It first checks for a repo-specific .repo-search/evals/cases directory,
+// It first checks for a repo-specific .repo_search/evals/cases directory,
 // and falls back to the provided casesDir if not found.
 func (r *Runner) LoadTestCases(casesDir string) ([]TestCase, error) {
 	var cases []TestCase
 
 	// Check for repo-specific eval cases first
-	repoEvalDir := filepath.Join(r.config.RepoPath, ".repo-search", "evals", "cases")
+	repoEvalDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "cases")
 	if info, err := os.Stat(repoEvalDir); err == nil && info.IsDir() {
 		casesDir = repoEvalDir
 	}
@@ -244,10 +244,10 @@ func (r *Runner) buildClaudeArgs(tc TestCase, mode ExecutionMode) []string {
 }
 
 // SaveResults writes the raw results to a JSON file.
-// It always uses the repo-specific .repo-search/evals/results directory.
+// It always uses the repo-specific .repo_search/evals/results directory.
 func (r *Runner) SaveResults(report *EvalReport) error {
 	// Always use repo-specific results directory to keep results with cases
-	outputDir := filepath.Join(r.config.RepoPath, ".repo-search", "evals", "results")
+	outputDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "results")
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
@@ -273,7 +273,7 @@ func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
 }
 
-// EnsureGitignore ensures the .repo-search directory is in the target repo's .gitignore.
+// EnsureGitignore ensures the .repo_search directory is in the target repo's .gitignore.
 func (r *Runner) EnsureGitignore() error {
 	gitignorePath := filepath.Join(r.config.RepoPath, ".gitignore")
 
@@ -283,23 +283,23 @@ func (r *Runner) EnsureGitignore() error {
 		return fmt.Errorf("reading .gitignore: %w", err)
 	}
 
-	// Check if .repo-search is already in .gitignore
+	// Check if .repo_search is already in .gitignore
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == ".repo-search" || trimmed == ".repo-search/" {
+		if trimmed == ".repo_search" || trimmed == ".repo_search/" {
 			return nil // Already exists
 		}
 	}
 
-	// Append .repo-search to .gitignore
+	// Append .repo_search to .gitignore
 	var newContent string
 	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
-		newContent = string(content) + "\n.repo-search/\n"
+		newContent = string(content) + "\n.repo_search/\n"
 	} else if len(content) > 0 {
-		newContent = string(content) + ".repo-search/\n"
+		newContent = string(content) + ".repo_search/\n"
 	} else {
-		newContent = ".repo-search/\n"
+		newContent = ".repo_search/\n"
 	}
 
 	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {

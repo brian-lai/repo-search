@@ -166,7 +166,7 @@ repo-search-eval run --repo /path/to/project
 repo-search-eval report
 ```
 
-Eval cases are stored in `.repo-search/evals/cases/` (auto-added to .gitignore) so you can version-control test cases while keeping results local.
+Eval cases are stored in `.repo_search/evals/cases/` (auto-added to .gitignore) so you can version-control test cases while keeping results local.
 
 See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creating test cases, understanding metrics, and best practices.
 

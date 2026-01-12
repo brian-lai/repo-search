@@ -81,7 +81,7 @@ func runEval(args []string) {
 	// Create runner and load test cases
 	runner := evals.NewRunner(config)
 
-	// Ensure .repo-search is in .gitignore when running against a target repo
+	// Ensure .repo_search is in .gitignore when running against a target repo
 	if isExternalRepo {
 		if err := runner.EnsureGitignore(); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not update .gitignore: %v\n", err)
@@ -104,7 +104,7 @@ func runEval(args []string) {
 		fmt.Fprintln(os.Stderr, "")
 
 		// Check if we're evaluating a different repo
-		repoEvalDir := filepath.Join(absRepoPath, ".repo-search", "evals", "cases")
+		repoEvalDir := filepath.Join(absRepoPath, ".repo_search", "evals", "cases")
 		if absRepoPath != "." {
 			fmt.Fprintf(os.Stderr, "For repo-specific eval cases, create them in:\n")
 			fmt.Fprintf(os.Stderr, "  %s\n", repoEvalDir)
@@ -113,7 +113,7 @@ func runEval(args []string) {
 
 		fmt.Fprintln(os.Stderr, "To create eval cases for this repository, you can use an AI assistant with:")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  \"Create eval test cases for this repository in .repo-search/evals/cases/")
+		fmt.Fprintln(os.Stderr, "  \"Create eval test cases for this repository in .repo_search/evals/cases/")
 		fmt.Fprintln(os.Stderr, "   Include search, navigation, and code understanding test cases in JSONL format.\"")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, strings.Repeat("=", 80))

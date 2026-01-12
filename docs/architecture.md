@@ -303,7 +303,7 @@ Test Cases → Runner → [MCP Search, Direct Search] → Validator → Report
 Features:
 - JSONL-based test case format
 - Categories: search, navigate, understand
-- Per-repo test case storage in `.repo-search/evals/cases/`
+- Per-repo test case storage in `.repo_search/evals/cases/`
 - Automated validation of results
 - Performance comparison reports
 
