@@ -102,8 +102,9 @@ install: build
 	@cp $(BINARY) $(BIN_DIR)/repo-search-mcp
 	@cp $(INDEXER) $(BIN_DIR)/repo-search-index
 	@cp $(DAEMON) $(BIN_DIR)/repo-search-daemon
+	@cp $(EVAL) $(BIN_DIR)/repo-search-eval
 	@cp scripts/repo-search-wrapper.sh $(BIN_DIR)/repo-search
-	@chmod +x $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon
+	@chmod +x $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon $(BIN_DIR)/repo-search-eval
 	@cp templates/mcp.json $(SHARE_DIR)/templates/
 	@echo ""
 	@echo "✓ Installed to $(PREFIX)"
@@ -116,11 +117,16 @@ install: build
 	@echo "  repo-search init"
 	@echo "  repo-search index"
 	@echo "  repo-search daemon start"
+	@echo ""
+	@echo "Evaluation:"
+	@echo "  repo-search-eval run --verbose    # Run evaluation tests"
+	@echo "  repo-search-eval list             # List test cases"
+	@echo "  repo-search-eval report           # Show latest report"
 
 # Uninstall
 uninstall:
 	@echo "Uninstalling from $(PREFIX)..."
-	@rm -f $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon
+	@rm -f $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon $(BIN_DIR)/repo-search-eval
 	@rm -rf $(SHARE_DIR)
 	@echo "✓ Uninstalled"
 
