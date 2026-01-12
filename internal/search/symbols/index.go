@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"repo-search/internal/db"
 )
 
 // Index is the SQLite-backed symbol index
@@ -37,9 +39,16 @@ func (idx *Index) Close() error {
 	return nil
 }
 
-// DB returns the underlying database connection
+// DB returns the underlying database connection.
+// Deprecated: Use DBAdapter() for new code to get the db.DB interface.
 func (idx *Index) DB() *sql.DB {
 	return idx.db
+}
+
+// DBAdapter returns the database wrapped in the db.DB interface.
+// Use this for interoperability with packages that use the adapter interface.
+func (idx *Index) DBAdapter() db.DB {
+	return db.WrapSQL(idx.db)
 }
 
 // FindSymbol searches for symbols by name (supports LIKE patterns)

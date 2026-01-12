@@ -12,7 +12,7 @@ Executing: sqlite-vec Integration for Semantic Search Latency Optimization
 - [x] Create adapter interface in internal/db/adapter.go
 - [x] Implement modernc.org/sqlite adapter
 - [x] Update EmbeddingStore to use adapter interface
-- [ ] Update symbols package to use adapter interface
+- [x] Update symbols package to use adapter interface
 - [ ] Add unit tests for adapter
 - [ ] Document future ncruces/sqlite-vec adapter option
 

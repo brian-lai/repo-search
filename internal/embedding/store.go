@@ -1,7 +1,6 @@
 package embedding
 
 import (
-	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -60,15 +59,7 @@ func NewEmbeddingStore(database db.DB) (*EmbeddingStore, error) {
 // This is for backward compatibility with existing code.
 // Prefer NewEmbeddingStore with db.DB for new code.
 func NewEmbeddingStoreFromSQL(sqlDB *sql.DB) (*EmbeddingStore, error) {
-	// Wrap the sql.DB in a minimal adapter
-	wrapped := &sqlDBWrapper{sqlDB}
-
-	// Create embedding table if not exists
-	if _, err := wrapped.Exec(embeddingSchema); err != nil {
-		return nil, fmt.Errorf("creating embedding schema: %w", err)
-	}
-
-	return &EmbeddingStore{db: wrapped}, nil
+	return NewEmbeddingStore(db.WrapSQL(sqlDB))
 }
 
 // Save stores an embedding for a chunk
@@ -234,132 +225,4 @@ func scanEmbeddingRecords(rows db.Rows) ([]EmbeddingRecord, error) {
 func hashContent(content string) string {
 	h := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(h[:])
-}
-
-// --- Backward compatibility: sql.DB wrapper ---
-
-// sqlDBWrapper wraps *sql.DB to implement db.DB interface.
-// This allows existing code using *sql.DB to work without changes.
-type sqlDBWrapper struct {
-	*sql.DB
-}
-
-func (w *sqlDBWrapper) Query(query string, args ...any) (db.Rows, error) {
-	rows, err := w.DB.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRowsWrapper{rows}, nil
-}
-
-func (w *sqlDBWrapper) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	rows, err := w.DB.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRowsWrapper{rows}, nil
-}
-
-func (w *sqlDBWrapper) QueryRow(query string, args ...any) db.Row {
-	return &sqlRowWrapper{w.DB.QueryRow(query, args...)}
-}
-
-func (w *sqlDBWrapper) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
-	return &sqlRowWrapper{w.DB.QueryRowContext(ctx, query, args...)}
-}
-
-func (w *sqlDBWrapper) Exec(query string, args ...any) (db.Result, error) {
-	return w.DB.Exec(query, args...)
-}
-
-func (w *sqlDBWrapper) ExecContext(ctx context.Context, query string, args ...any) (db.Result, error) {
-	return w.DB.ExecContext(ctx, query, args...)
-}
-
-func (w *sqlDBWrapper) Begin() (db.Tx, error) {
-	tx, err := w.DB.Begin()
-	if err != nil {
-		return nil, err
-	}
-	return &sqlTxWrapper{tx}, nil
-}
-
-func (w *sqlDBWrapper) BeginTx(ctx context.Context, opts *sql.TxOptions) (db.Tx, error) {
-	tx, err := w.DB.BeginTx(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlTxWrapper{tx}, nil
-}
-
-func (w *sqlDBWrapper) Ping() error {
-	return w.DB.Ping()
-}
-
-func (w *sqlDBWrapper) PingContext(ctx context.Context) error {
-	return w.DB.PingContext(ctx)
-}
-
-type sqlRowsWrapper struct {
-	*sql.Rows
-}
-
-func (r *sqlRowsWrapper) Columns() ([]string, error) {
-	return r.Rows.Columns()
-}
-
-type sqlRowWrapper struct {
-	*sql.Row
-}
-
-func (r *sqlRowWrapper) Err() error {
-	return r.Row.Err()
-}
-
-type sqlTxWrapper struct {
-	*sql.Tx
-}
-
-func (t *sqlTxWrapper) Query(query string, args ...any) (db.Rows, error) {
-	rows, err := t.Tx.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRowsWrapper{rows}, nil
-}
-
-func (t *sqlTxWrapper) QueryRow(query string, args ...any) db.Row {
-	return &sqlRowWrapper{t.Tx.QueryRow(query, args...)}
-}
-
-func (t *sqlTxWrapper) Exec(query string, args ...any) (db.Result, error) {
-	return t.Tx.Exec(query, args...)
-}
-
-func (t *sqlTxWrapper) Prepare(query string) (db.Stmt, error) {
-	stmt, err := t.Tx.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlStmtWrapper{stmt}, nil
-}
-
-type sqlStmtWrapper struct {
-	*sql.Stmt
-}
-
-func (s *sqlStmtWrapper) Query(args ...any) (db.Rows, error) {
-	rows, err := s.Stmt.Query(args...)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRowsWrapper{rows}, nil
-}
-
-func (s *sqlStmtWrapper) QueryRow(args ...any) db.Row {
-	return &sqlRowWrapper{s.Stmt.QueryRow(args...)}
-}
-
-func (s *sqlStmtWrapper) Exec(args ...any) (db.Result, error) {
-	return s.Stmt.Exec(args...)
 }
