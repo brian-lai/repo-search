@@ -187,8 +187,11 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 		return nil, err
 	}
 
-	// Get db from index
-	db := idx.DB()
+	// Create embedding store from index database
+	store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB())
+	if err != nil {
+		return nil, fmt.Errorf("creating embedding store: %w", err)
+	}
 
 	// Create embedder from environment configuration
 	embedder, err := embedding.NewEmbedderFromEnv()
@@ -197,7 +200,7 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 	}
 
 	// Create semantic searcher
-	return embedding.NewSemanticSearcher(db, embedder)
+	return embedding.NewSemanticSearcher(store, embedder), nil
 }
 
 // getSnippetFn returns a function that reads code snippets from files
