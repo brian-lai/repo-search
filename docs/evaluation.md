@@ -142,19 +142,35 @@ Create test case files (e.g., `.repo_search/evals/cases/search.jsonl`):
 
 ### AI-Assisted Creation
 
-Use Claude or another AI assistant to generate test cases:
+Start a Claude Code session in the target repository and paste this prompt:
 
 ```
-Create eval test cases for this repository in .repo_search/evals/cases/
-Include search, navigation, and code understanding test cases in JSONL format.
+Create eval test cases for the repo-search MCP tool in .repo_search/evals/cases/
 
-Categories:
-- search: Finding code patterns, keywords, or concepts
-- navigate: Locating specific symbols, definitions, or implementations
-- understand: Comprehending code structure, relationships, or architecture
+These test cases will be used by repo-search-eval to measure MCP search performance
+against this repository (without pre-indexing). Create JSONL files organized by
+category:
+- search.jsonl: keyword/regex searches, file pattern matching
+- navigate.jsonl: finding definitions, references, call hierarchies
+- understand.jsonl: code comprehension, architectural questions
 
-Create at least 10 test cases across these categories with realistic prompts
-that developers would actually ask when working with this codebase.
+Each line should be a JSON object with this structure:
+{
+  "id": "unique-id",
+  "category": "search|navigate|understand",
+  "description": "Brief description of what this tests",
+  "prompt": "The actual question/search to ask",
+  "difficulty": "easy|medium|hard",
+  "ground_truth": {
+    "files": ["expected/file/paths.go"],
+    "symbols": ["expectedFunctionName"],
+    "lines": {"file.go": [10, 20]},
+    "content": ["expected snippets in output"]
+  }
+}
+
+Create 5-10 test cases per category based on this repository's actual code structure.
+Focus on queries that have clear, verifiable answers.
 ```
 
 ## Test Case Format

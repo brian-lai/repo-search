@@ -159,6 +159,11 @@ func (r *Runner) runTestCase(ctx context.Context, tc TestCase, mode ExecutionMod
 	err := cmd.Run()
 	duration := time.Since(start)
 
+	// Save raw stdout to log file for later inspection
+	if err := r.saveLog(tc.ID, mode, start, stdout.Bytes()); err != nil && r.config.Verbose {
+		fmt.Fprintf(os.Stderr, "warning: could not save log for %s: %v\n", tc.ID, err)
+	}
+
 	result := &RunResult{
 		TestCaseID: tc.ID,
 		Mode:       mode,
@@ -197,7 +202,8 @@ func (r *Runner) runTestCase(ctx context.Context, tc TestCase, mode ExecutionMod
 				result.OutputTokens = event.Usage.OutputTokens
 				result.CacheReadTokens = event.Usage.CacheReadInputTokens
 				result.CacheCreateTokens = event.Usage.CacheCreationInputTokens
-				result.TokensUsed = event.Usage.InputTokens + event.Usage.OutputTokens
+				result.TokensUsed = event.Usage.InputTokens + event.Usage.OutputTokens +
+					event.Usage.CacheReadInputTokens + event.Usage.CacheCreationInputTokens
 			}
 		}
 	}
@@ -271,6 +277,114 @@ func (r *Runner) SaveResults(report *EvalReport) error {
 
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
+}
+
+// saveLog writes the raw Claude stdout to a log file for later inspection.
+func (r *Runner) saveLog(testCaseID string, mode ExecutionMode, timestamp time.Time, data []byte) error {
+	logsDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return fmt.Errorf("creating logs dir: %w", err)
+	}
+
+	filename := fmt.Sprintf("%s-%s-%s.log", timestamp.Format("2006-01-02-150405"), testCaseID, mode)
+	path := filepath.Join(logsDir, filename)
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("writing log: %w", err)
+	}
+
+	return nil
+}
+
+// LogEntry represents a single log file with metadata.
+type LogEntry struct {
+	Path      string        `json:"path"`
+	TestCase  string        `json:"test_case"`
+	Mode      ExecutionMode `json:"mode"`
+	Timestamp time.Time     `json:"timestamp"`
+	Size      int64         `json:"size"`
+}
+
+// ListLogs returns all log files for a given repo, sorted by timestamp (newest first).
+func (r *Runner) ListLogs() ([]LogEntry, error) {
+	logsDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "logs")
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "*.log"))
+	if err != nil {
+		return nil, fmt.Errorf("finding log files: %w", err)
+	}
+
+	var entries []LogEntry
+	for _, file := range files {
+		entry, err := parseLogFilename(file)
+		if err != nil {
+			continue // Skip unparseable filenames
+		}
+
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		entry.Size = info.Size()
+		entries = append(entries, entry)
+	}
+
+	// Sort by timestamp descending (newest first)
+	for i := 0; i < len(entries)-1; i++ {
+		for j := i + 1; j < len(entries); j++ {
+			if entries[j].Timestamp.After(entries[i].Timestamp) {
+				entries[i], entries[j] = entries[j], entries[i]
+			}
+		}
+	}
+
+	return entries, nil
+}
+
+// parseLogFilename extracts metadata from a log filename.
+// Format: 2006-01-02-150405-testcase-mode.log
+func parseLogFilename(path string) (LogEntry, error) {
+	filename := filepath.Base(path)
+	filename = strings.TrimSuffix(filename, ".log")
+
+	// Split into timestamp-testcase-mode
+	// Timestamp is fixed format: 2006-01-02-150405 (19 chars)
+	if len(filename) < 22 { // 19 + 1 (dash) + at least 1 char + 1 (dash) + mode
+		return LogEntry{}, fmt.Errorf("filename too short")
+	}
+
+	timestampStr := filename[:19]
+	timestamp, err := time.Parse("2006-01-02-150405", timestampStr)
+	if err != nil {
+		return LogEntry{}, fmt.Errorf("parsing timestamp: %w", err)
+	}
+
+	rest := filename[20:] // Skip timestamp and dash
+
+	// Find mode suffix
+	var mode ExecutionMode
+	var testCase string
+	if strings.HasSuffix(rest, "-with_mcp") {
+		mode = ModeWithMCP
+		testCase = strings.TrimSuffix(rest, "-with_mcp")
+	} else if strings.HasSuffix(rest, "-without_mcp") {
+		mode = ModeWithoutMCP
+		testCase = strings.TrimSuffix(rest, "-without_mcp")
+	} else {
+		return LogEntry{}, fmt.Errorf("unknown mode suffix")
+	}
+
+	return LogEntry{
+		Path:      path,
+		TestCase:  testCase,
+		Mode:      mode,
+		Timestamp: timestamp,
+	}, nil
+}
+
+// ReadLog reads and returns the contents of a log file.
+func (r *Runner) ReadLog(path string) ([]byte, error) {
+	return os.ReadFile(path)
 }
 
 // EnsureGitignore ensures the .repo_search directory is in the target repo's .gitignore.

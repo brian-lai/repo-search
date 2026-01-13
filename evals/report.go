@@ -31,6 +31,8 @@ func (r *Reporter) GenerateSummary(report *EvalReport) {
 			withMCP.AvgLatency += result.Duration
 			withMCP.AvgInputTokens += float64(result.InputTokens)
 			withMCP.AvgOutputTokens += float64(result.OutputTokens)
+			withMCP.AvgCacheReadTokens += float64(result.CacheReadTokens)
+			withMCP.AvgCacheCreateTokens += float64(result.CacheCreateTokens)
 			withMCP.AvgTotalTokens += float64(result.TokensUsed)
 			withMCP.TotalCostUSD += result.CostUSD
 			withMCP.AvgTurns += float64(result.NumTurns)
@@ -43,6 +45,8 @@ func (r *Reporter) GenerateSummary(report *EvalReport) {
 			withoutMCP.AvgLatency += result.Duration
 			withoutMCP.AvgInputTokens += float64(result.InputTokens)
 			withoutMCP.AvgOutputTokens += float64(result.OutputTokens)
+			withoutMCP.AvgCacheReadTokens += float64(result.CacheReadTokens)
+			withoutMCP.AvgCacheCreateTokens += float64(result.CacheCreateTokens)
 			withoutMCP.AvgTotalTokens += float64(result.TokensUsed)
 			withoutMCP.TotalCostUSD += result.CostUSD
 			withoutMCP.AvgTurns += float64(result.NumTurns)
@@ -56,6 +60,8 @@ func (r *Reporter) GenerateSummary(report *EvalReport) {
 		withMCP.AvgLatency /= time.Duration(mcpCount)
 		withMCP.AvgInputTokens /= float64(mcpCount)
 		withMCP.AvgOutputTokens /= float64(mcpCount)
+		withMCP.AvgCacheReadTokens /= float64(mcpCount)
+		withMCP.AvgCacheCreateTokens /= float64(mcpCount)
 		withMCP.AvgTotalTokens /= float64(mcpCount)
 		withMCP.AvgCostUSD = withMCP.TotalCostUSD / float64(mcpCount)
 		withMCP.AvgTurns /= float64(mcpCount)
@@ -65,6 +71,8 @@ func (r *Reporter) GenerateSummary(report *EvalReport) {
 		withoutMCP.AvgLatency /= time.Duration(noMcpCount)
 		withoutMCP.AvgInputTokens /= float64(noMcpCount)
 		withoutMCP.AvgOutputTokens /= float64(noMcpCount)
+		withoutMCP.AvgCacheReadTokens /= float64(noMcpCount)
+		withoutMCP.AvgCacheCreateTokens /= float64(noMcpCount)
 		withoutMCP.AvgTotalTokens /= float64(noMcpCount)
 		withoutMCP.AvgCostUSD = withoutMCP.TotalCostUSD / float64(noMcpCount)
 		withoutMCP.AvgTurns /= float64(noMcpCount)
@@ -142,6 +150,16 @@ func (r *Reporter) PrintReport(report *EvalReport, w io.Writer) {
 		report.Summary.WithMCP.AvgOutputTokens,
 		report.Summary.WithoutMCP.AvgOutputTokens,
 		calcReduction(report.Summary.WithoutMCP.AvgOutputTokens, report.Summary.WithMCP.AvgOutputTokens))
+	fmt.Fprintf(w, "| %-18s | %15.0f | %15.0f | %+14.1f%% |\n",
+		"Cache Read Tokens",
+		report.Summary.WithMCP.AvgCacheReadTokens,
+		report.Summary.WithoutMCP.AvgCacheReadTokens,
+		calcReduction(report.Summary.WithoutMCP.AvgCacheReadTokens, report.Summary.WithMCP.AvgCacheReadTokens))
+	fmt.Fprintf(w, "| %-18s | %15.0f | %15.0f | %+14.1f%% |\n",
+		"Cache Create Tokens",
+		report.Summary.WithMCP.AvgCacheCreateTokens,
+		report.Summary.WithoutMCP.AvgCacheCreateTokens,
+		calcReduction(report.Summary.WithoutMCP.AvgCacheCreateTokens, report.Summary.WithMCP.AvgCacheCreateTokens))
 	fmt.Fprintf(w, "| %-18s | %15.0f | %15.0f | %+14.1f%% |\n",
 		"Total Tokens",
 		report.Summary.WithMCP.AvgTotalTokens,

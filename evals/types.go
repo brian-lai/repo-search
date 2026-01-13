@@ -107,16 +107,18 @@ type ReportSummary struct {
 
 // ModeStats contains aggregate stats for a single execution mode.
 type ModeStats struct {
-	AvgAccuracy      float64       `json:"avg_accuracy"`
-	AvgInputTokens   float64       `json:"avg_input_tokens"`
-	AvgOutputTokens  float64       `json:"avg_output_tokens"`
-	AvgTotalTokens   float64       `json:"avg_total_tokens"`
-	AvgCostUSD       float64       `json:"avg_cost_usd"`
-	TotalCostUSD     float64       `json:"total_cost_usd"`
-	AvgLatency       time.Duration `json:"avg_latency_ns"`
-	AvgTurns         float64       `json:"avg_turns"`
-	SuccessRate      float64       `json:"success_rate"`
-	TotalToolCalls   int           `json:"total_tool_calls"`
+	AvgAccuracy         float64       `json:"avg_accuracy"`
+	AvgInputTokens      float64       `json:"avg_input_tokens"`
+	AvgOutputTokens     float64       `json:"avg_output_tokens"`
+	AvgCacheReadTokens  float64       `json:"avg_cache_read_tokens"`
+	AvgCacheCreateTokens float64      `json:"avg_cache_create_tokens"`
+	AvgTotalTokens      float64       `json:"avg_total_tokens"`
+	AvgCostUSD          float64       `json:"avg_cost_usd"`
+	TotalCostUSD        float64       `json:"total_cost_usd"`
+	AvgLatency          time.Duration `json:"avg_latency_ns"`
+	AvgTurns            float64       `json:"avg_turns"`
+	SuccessRate         float64       `json:"success_rate"`
+	TotalToolCalls      int           `json:"total_tool_calls"`
 }
 
 // ComparisonResult compares results between modes for a single test case.

@@ -28,6 +28,8 @@ func main() {
 		showReport(os.Args[2:])
 	case "list":
 		listCases(os.Args[2:])
+	case "logs":
+		showLogs(os.Args[2:])
 	case "version":
 		fmt.Printf("repo-search-eval v%s\n", version)
 	case "help", "-h", "--help":
@@ -111,10 +113,36 @@ func runEval(args []string) {
 			fmt.Fprintln(os.Stderr, "")
 		}
 
-		fmt.Fprintln(os.Stderr, "To create eval cases for this repository, you can use an AI assistant with:")
+		fmt.Fprintln(os.Stderr, "To create eval cases, start a Claude Code session in the target repo and paste:")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  \"Create eval test cases for this repository in .repo_search/evals/cases/")
-		fmt.Fprintln(os.Stderr, "   Include search, navigation, and code understanding test cases in JSONL format.\"")
+		fmt.Fprintln(os.Stderr, "--------------------------------------------------------------------------------")
+		fmt.Fprintln(os.Stderr, `Create eval test cases for the repo-search MCP tool in .repo_search/evals/cases/
+
+These test cases will be used by repo-search-eval to measure MCP search performance
+against this repository (without pre-indexing). Create JSONL files organized by
+category:
+- search.jsonl: keyword/regex searches, file pattern matching
+- navigate.jsonl: finding definitions, references, call hierarchies
+- understand.jsonl: code comprehension, architectural questions
+
+Each line should be a JSON object with this structure:
+{
+  "id": "unique-id",
+  "category": "search|navigate|understand",
+  "description": "Brief description of what this tests",
+  "prompt": "The actual question/search to ask",
+  "difficulty": "easy|medium|hard",
+  "ground_truth": {
+    "files": ["expected/file/paths.go"],
+    "symbols": ["expectedFunctionName"],
+    "lines": {"file.go": [10, 20]},
+    "content": ["expected snippets in output"]
+  }
+}
+
+Create 5-10 test cases per category based on this repository's actual code structure.
+Focus on queries that have clear, verifiable answers.`)
+		fmt.Fprintln(os.Stderr, "--------------------------------------------------------------------------------")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, strings.Repeat("=", 80))
 		os.Exit(1)
@@ -213,6 +241,104 @@ func listCases(args []string) {
 	}
 }
 
+func showLogs(args []string) {
+	fs := flag.NewFlagSet("logs", flag.ExitOnError)
+	repoPath := fs.String("repo", ".", "Path to repository")
+	testCase := fs.String("case", "", "Filter by test case ID")
+	mode := fs.String("mode", "", "Filter by mode (with_mcp, without_mcp)")
+	latest := fs.Bool("latest", false, "Show only the latest log")
+	listOnly := fs.Bool("list", false, "List logs without showing content")
+	fs.Parse(args)
+
+	config := evals.DefaultConfig()
+
+	absRepoPath, err := filepath.Abs(*repoPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: invalid repo path: %v\n", err)
+		os.Exit(1)
+	}
+	config.RepoPath = absRepoPath
+
+	runner := evals.NewRunner(config)
+	logs, err := runner.ListLogs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error listing logs: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(logs) == 0 {
+		fmt.Fprintln(os.Stderr, "No logs found. Run 'repo-search-eval run' first to generate logs.")
+		os.Exit(1)
+	}
+
+	// Apply filters
+	var filtered []evals.LogEntry
+	for _, log := range logs {
+		if *testCase != "" && log.TestCase != *testCase {
+			continue
+		}
+		if *mode != "" && string(log.Mode) != *mode {
+			continue
+		}
+		filtered = append(filtered, log)
+	}
+
+	if len(filtered) == 0 {
+		fmt.Fprintln(os.Stderr, "No logs match the specified filters.")
+		os.Exit(1)
+	}
+
+	// If --latest, only show the most recent
+	if *latest {
+		filtered = filtered[:1]
+	}
+
+	// If --list, just show the list
+	if *listOnly {
+		fmt.Printf("Logs (%d total):\n\n", len(filtered))
+		for _, log := range filtered {
+			fmt.Printf("  %s  %-15s  %-12s  %s\n",
+				log.Timestamp.Format("2006-01-02 15:04:05"),
+				log.TestCase,
+				log.Mode,
+				formatBytes(log.Size))
+		}
+		return
+	}
+
+	// Stream log contents to stdout
+	for i, log := range filtered {
+		if len(filtered) > 1 {
+			fmt.Printf("=== %s [%s] %s ===\n", log.TestCase, log.Mode, log.Timestamp.Format("2006-01-02 15:04:05"))
+		}
+
+		content, err := runner.ReadLog(log.Path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading log %s: %v\n", log.Path, err)
+			continue
+		}
+
+		os.Stdout.Write(content)
+
+		if len(filtered) > 1 && i < len(filtered)-1 {
+			fmt.Println()
+		}
+	}
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 func printUsage() {
 	fmt.Println(`repo-search-eval - Evaluate MCP vs non-MCP performance
 
@@ -223,6 +349,7 @@ Commands:
   run      Run evaluation test cases
   report   Display a saved report
   list     List available test cases
+  logs     View raw Claude output logs from eval runs
   version  Print version
   help     Show this help
 
@@ -237,6 +364,13 @@ Run Options:
 Report Options:
   --results <path>   Path to results JSON file
 
+Logs Options:
+  --repo <path>      Repository to view logs for (default: .)
+  --case <id>        Filter by test case ID
+  --mode <mode>      Filter by mode (with_mcp, without_mcp)
+  --latest           Show only the most recent log
+  --list             List logs without showing content
+
 Examples:
   # Run all tests on current directory
   repo-search-eval run
@@ -248,5 +382,14 @@ Examples:
   repo-search-eval report
 
   # List available test cases
-  repo-search-eval list`)
+  repo-search-eval list
+
+  # List all logs for a repo
+  repo-search-eval logs --repo /path/to/project --list
+
+  # View the latest log
+  repo-search-eval logs --repo /path/to/project --latest
+
+  # View logs for a specific test case
+  repo-search-eval logs --repo /path/to/project --case search-001`)
 }
