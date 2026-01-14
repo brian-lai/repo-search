@@ -43,6 +43,20 @@ fi
 #
 # Helper functions
 #
+check_port() {
+    local port=$1
+    if command -v lsof &> /dev/null; then
+        lsof -i ":$port" &> /dev/null
+        return $?
+    elif command -v netstat &> /dev/null; then
+        netstat -an | grep -q ":$port.*LISTEN"
+        return $?
+    else
+        # Can't check, assume available
+        return 1
+    fi
+}
+
 print_header() {
     echo -e "\n${CYAN}${BOLD}"
     echo "╔════════════════════════════════════════════════════════════════════╗"
@@ -449,16 +463,114 @@ case $DB_CHOICE in
         echo ""
         print_section "PostgreSQL + pgvector Setup"
 
-        # Check if PostgreSQL is installed
-        if command -v psql &> /dev/null; then
-            PG_VERSION=$(psql --version | awk '{print $3}')
-            success "PostgreSQL $PG_VERSION is installed"
-            POSTGRES_INSTALLED=true
+        # Check if Docker is available
+        DOCKER_AVAILABLE=false
+        if command -v docker &> /dev/null && docker ps &> /dev/null; then
+            success "Docker is available"
+            DOCKER_AVAILABLE=true
+        fi
+
+        # Offer Docker vs System installation
+        echo "Choose installation method:"
+        echo ""
+        if [[ $DOCKER_AVAILABLE == true ]]; then
+            echo -e "  ${GREEN}${BOLD}1)${NC} Docker (recommended - easy to manage)"
+            info "Isolated container, easy start/stop, no system conflicts"
         else
-            warn "PostgreSQL is not installed"
+            echo -e "  ${YELLOW}${BOLD}1)${NC} Docker (not available)"
+            info "Install Docker from: ${BOLD}https://www.docker.com/get-started${NC}"
+        fi
+        echo ""
+        echo -e "  ${GREEN}${BOLD}2)${NC} System installation (PostgreSQL + pgvector)"
+        info "Installs directly on your system via package manager"
+        echo ""
+
+        read -p "$(prompt "Your choice [1]")" INSTALL_METHOD
+        INSTALL_METHOD=${INSTALL_METHOD:-1}
+
+        if [[ $INSTALL_METHOD == "1" && $DOCKER_AVAILABLE == true ]]; then
+            # Docker installation
             echo ""
-            info "PostgreSQL with pgvector extension is required for vector database."
+            print_section "Docker PostgreSQL Setup"
+
+            # Check port availability
+            PG_PORT=5432
+            while check_port $PG_PORT; do
+                warn "Port $PG_PORT is already in use"
+                echo ""
+                read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
+                PG_PORT=${ALT_PORT:-5433}
+            done
+
+            success "Port $PG_PORT is available"
+
+            # Set environment for docker-compose
+            export POSTGRES_PORT=$PG_PORT
+
+            info "Starting PostgreSQL with pgvector in Docker..."
+            info "Container: repo-search-postgres"
+            info "Port: $PG_PORT"
             echo ""
+
+            if docker-compose up -d postgres; then
+                success "PostgreSQL container started successfully"
+
+                # Wait for PostgreSQL to be ready
+                info "Waiting for PostgreSQL to be ready..."
+                for i in {1..30}; do
+                    if docker-compose exec -T postgres pg_isready -U repo_search &>/dev/null; then
+                        success "PostgreSQL is ready"
+                        break
+                    fi
+                    sleep 1
+                done
+
+                # Check if pgvector is enabled
+                if docker-compose exec -T postgres psql -U repo_search -d repo_search -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                    success "pgvector extension is enabled"
+                else
+                    warn "pgvector extension not enabled automatically"
+                    info "Enabling pgvector..."
+                    docker-compose exec -T postgres psql -U repo_search -d repo_search -c "CREATE EXTENSION IF NOT EXISTS vector"
+                fi
+
+                # Set connection details
+                PG_HOST="localhost"
+                PG_USER="repo_search"
+                PG_PASSWORD="repo_search"
+                PG_DBNAME="repo_search"
+                POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
+                POSTGRES_INSTALLED=true
+
+                echo ""
+                print_box "$GREEN" \
+                    "PostgreSQL is running in Docker" \
+                    "" \
+                    "Start:   docker-compose up -d postgres" \
+                    "Stop:    docker-compose stop postgres" \
+                    "Logs:    docker-compose logs -f postgres" \
+                    "Remove:  docker-compose down -v"
+            else
+                error "Failed to start PostgreSQL container"
+                warn "Falling back to SQLite"
+                DB_TYPE="sqlite"
+            fi
+
+        elif [[ $INSTALL_METHOD == "2" || ($INSTALL_METHOD == "1" && $DOCKER_AVAILABLE == false) ]]; then
+            # System installation
+            echo ""
+            print_section "System PostgreSQL Installation"
+
+            # Check if PostgreSQL is installed
+            if command -v psql &> /dev/null; then
+                PG_VERSION=$(psql --version | awk '{print $3}')
+                success "PostgreSQL $PG_VERSION is installed"
+                POSTGRES_INSTALLED=true
+            else
+                warn "PostgreSQL is not installed"
+                echo ""
+                info "PostgreSQL with pgvector extension is required for vector database."
+                echo ""
 
             case $PKG_MGR in
                 brew)
@@ -604,8 +716,23 @@ case $DB_CHOICE in
             read -p "$(prompt "PostgreSQL host [localhost]")" PG_HOST
             PG_HOST=${PG_HOST:-localhost}
 
-            read -p "$(prompt "PostgreSQL port [5432]")" PG_PORT
-            PG_PORT=${PG_PORT:-5432}
+            # Check port availability
+            PG_PORT=5432
+            if check_port $PG_PORT; then
+                warn "Port $PG_PORT is already in use by another service"
+                echo ""
+                read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
+                PG_PORT=${ALT_PORT:-5433}
+
+                # Check alternative port
+                if check_port $PG_PORT; then
+                    error "Port $PG_PORT is also in use"
+                    warn "Please stop the conflicting service or choose a different port"
+                    read -p "$(prompt "Enter port number")" PG_PORT
+                fi
+            fi
+
+            success "Using port $PG_PORT"
 
             read -p "$(prompt "PostgreSQL user [$DEFAULT_PG_USER]")" PG_USER
             PG_USER=${PG_USER:-$DEFAULT_PG_USER}
@@ -677,9 +804,14 @@ case $DB_CHOICE in
                     exit 1
                 fi
             fi
+            else
+                warn "PostgreSQL is not installed"
+                info "Falling back to SQLite"
+                DB_TYPE="sqlite"
+            fi
         else
-            warn "PostgreSQL is not installed"
-            info "Falling back to SQLite"
+            error "Invalid installation method"
+            warn "Falling back to SQLite"
             DB_TYPE="sqlite"
         fi
         ;;

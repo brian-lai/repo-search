@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: repo-search-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: repo_search
+      POSTGRES_PASSWORD: repo_search
+      POSTGRES_DB: repo_search
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - repo-search-pgdata:/var/lib/postgresql/data
+      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repo_search"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  repo-search-pgdata:
+    name: repo-search-pgdata
