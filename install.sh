@@ -768,6 +768,42 @@ fi
 
 success "Configuration saved to $CONFIG_FILE"
 
+# Add config sourcing to shell profile
+if [[ $INSTALLED_GLOBALLY == true ]]; then
+    # Detect shell
+    if [[ $SHELL == *"zsh"* ]]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [[ $SHELL == *"bash"* ]]; then
+        SHELL_RC="$HOME/.bashrc"
+    else
+        SHELL_RC="$HOME/.profile"
+    fi
+
+    # Check if sourcing line already exists (idempotency)
+    SOURCE_LINE="[ -f \"$CONFIG_FILE\" ] && source \"$CONFIG_FILE\""
+    if grep -qF "$CONFIG_FILE" "$SHELL_RC" 2>/dev/null; then
+        info "Config already sourced in $SHELL_RC"
+    else
+        echo ""
+        echo -e "  ${YELLOW}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+        echo ""
+        read -p "$(prompt "Add repo-search config to shell profile? [Y/n]")" ADD_CONFIG
+        ADD_CONFIG=${ADD_CONFIG:-Y}
+
+        if [[ $ADD_CONFIG =~ ^[Yy] ]]; then
+            echo "" >> "$SHELL_RC"
+            echo "# Source repo-search configuration" >> "$SHELL_RC"
+            echo "$SOURCE_LINE" >> "$SHELL_RC"
+            success "Added config sourcing to $SHELL_RC"
+            info "New shells will automatically have repo-search configuration"
+            info "For current shell, run: ${BOLD}source $SHELL_RC${NC}"
+        else
+            info "Skipped adding to shell profile"
+            info "To use config, run: ${BOLD}source $CONFIG_FILE${NC}"
+        fi
+    fi
+fi
+
 #
 # Step 6: Initial Setup
 #
