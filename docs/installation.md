@@ -14,6 +14,7 @@ This guide covers all installation methods for repo-search.
 - **[universal-ctags](https://github.com/universal-ctags/ctags)** - for symbol indexing
 - **[Ollama](https://ollama.ai)** - for semantic search (default embedding provider)
 - **[LiteLLM](https://github.com/BerriAI/litellm)** - alternative embedding provider
+- **[Docker](https://www.docker.com/get-started)** - for running PostgreSQL + pgvector (recommended)
 - **[PostgreSQL 12+](https://www.postgresql.org)** + **[pgvector](https://github.com/pgvector/pgvector)** - for scalable vector search (alternative to SQLite)
 
 ## Quick Start (Recommended)
@@ -82,13 +83,21 @@ The installer runs in 6 steps:
   - Shows two options:
     - **SQLite** (default): Simple, local, good for up to ~10k embeddings
     - **PostgreSQL + pgvector**: Scalable, good for large codebases and teams
-- **PostgreSQL Setup** (if selected):
-  - Checks if PostgreSQL is installed
-  - If not, offers to install automatically (brew, apt, dnf supported)
-  - Checks for pgvector extension
-  - If not found, offers to install pgvector
-  - Collects connection details (host, port, user, password, database)
-  - Tests connection and enables pgvector extension
+- **PostgreSQL Installation Method**:
+  - **Docker** (recommended if available):
+    - Checks if Docker is installed and running
+    - Checks if port 5432 is available (or prompts for alternative)
+    - Starts PostgreSQL + pgvector container automatically
+    - Auto-enables pgvector extension
+    - Shows container management commands
+  - **System Installation** (fallback):
+    - Checks if PostgreSQL is installed
+    - Offers to install automatically (brew, apt, dnf supported)
+    - Checks for pgvector extension
+    - Offers to install pgvector
+    - Checks port availability before setup
+    - Collects connection details
+    - Tests connection and enables pgvector extension
   - Falls back to SQLite if PostgreSQL setup fails
 
 **Step 4: Build and Install**
@@ -262,6 +271,55 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 **Note:** The installer handles extension setup automatically when you choose PostgreSQL.
+
+### Docker (Recommended for PostgreSQL)
+
+The installer can automatically set up PostgreSQL + pgvector in Docker. Manual setup:
+
+**Start PostgreSQL:**
+
+```bash
+docker-compose up -d postgres
+```
+
+**Stop PostgreSQL:**
+
+```bash
+docker-compose stop postgres
+```
+
+**View logs:**
+
+```bash
+docker-compose logs -f postgres
+```
+
+**Remove completely (including data):**
+
+```bash
+docker-compose down -v
+```
+
+**Custom port (if 5432 is in use):**
+
+```bash
+POSTGRES_PORT=5433 docker-compose up -d postgres
+```
+
+**Connection details:**
+- Host: `localhost`
+- Port: `5432` (or custom)
+- User: `repo_search`
+- Password: `repo_search`
+- Database: `repo_search`
+- DSN: `postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable`
+
+The Docker setup automatically:
+- Uses the official `pgvector/pgvector:pg16` image
+- Enables the pgvector extension on startup
+- Persists data in a named Docker volume (`repo-search-pgdata`)
+- Includes health checks
+- Restarts automatically unless stopped
 
 ## Per-Project Setup
 
@@ -458,4 +516,50 @@ repo-search doctor
 Try with explicit provider:
 ```bash
 REPO_SEARCH_EMBEDDING_PROVIDER=ollama repo-search embed
+```
+
+### Port 5432 already in use
+
+The installer automatically detects port conflicts. If manually setting up:
+
+**Check what's using the port:**
+```bash
+lsof -i :5432
+# or
+netstat -an | grep 5432
+```
+
+**For Docker, use a different port:**
+```bash
+POSTGRES_PORT=5433 docker-compose up -d postgres
+
+# Update your DSN
+export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5433/repo_search?sslmode=disable"
+```
+
+**Stop conflicting PostgreSQL:**
+```bash
+# macOS
+brew services stop postgresql@16
+
+# Linux
+sudo systemctl stop postgresql
+```
+
+### PostgreSQL container won't start
+
+**Check Docker is running:**
+```bash
+docker ps
+```
+
+**View container logs:**
+```bash
+docker-compose logs postgres
+```
+
+**Remove and recreate:**
+```bash
+docker-compose down -v
+docker-compose up -d postgres
 ```
