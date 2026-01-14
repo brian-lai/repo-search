@@ -1,6 +1,12 @@
 package db
 
-import "fmt"
+import (
+	"database/sql"
+	"fmt"
+	"time"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
+)
 
 // Open opens a database connection using the configuration.
 // Supports SQLite (default), PostgreSQL, and ClickHouse.
@@ -52,12 +58,30 @@ func openPostgres(cfg Config) (DB, error) {
 		return nil, fmt.Errorf("postgres requires DSN in config")
 	}
 
-	// TODO: Implement PostgreSQL driver (lib/pq or pgx)
-	// Example:
-	//   import _ "github.com/lib/pq"
-	//   db, err := sql.Open("postgres", cfg.DSN)
-	//   return WrapSQL(db), nil
-	return nil, fmt.Errorf("postgres driver not yet implemented (requires lib/pq or pgx)")
+	// Open connection using lib/pq driver
+	sqlDB, err := sql.Open("postgres", cfg.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open postgres connection: %w", err)
+	}
+
+	// Configure connection pool settings
+	if cfg.MaxOpenConns > 0 {
+		sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	}
+	if cfg.MaxIdleConns > 0 {
+		sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	}
+	if cfg.ConnMaxLifetime > 0 {
+		sqlDB.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
+	}
+
+	// Test the connection
+	if err := sqlDB.Ping(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("failed to ping postgres: %w", err)
+	}
+
+	return WrapSQL(sqlDB), nil
 }
 
 // openClickHouse opens a ClickHouse database connection.
