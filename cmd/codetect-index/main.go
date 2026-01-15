@@ -10,6 +10,8 @@ import (
 
 	ignore "github.com/sabhiram/go-gitignore"
 
+	"codetect/internal/config"
+	"codetect/internal/db"
 	"codetect/internal/embedding"
 	"codetect/internal/search/symbols"
 )
@@ -70,21 +72,30 @@ func runIndex(args []string) {
 		os.Exit(0)
 	}
 
-	// Create .codetect directory
-	indexDir := filepath.Join(absPath, ".codetect")
-	if err := os.MkdirAll(indexDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "error: creating index directory: %v\n", err)
-		os.Exit(1)
+	// Load database configuration from environment
+	dbConfig := config.LoadDatabaseConfigFromEnv()
+
+	// For SQLite, ensure .codetect directory exists and set path relative to target
+	if dbConfig.Type == db.DatabaseSQLite {
+		indexDir := filepath.Join(absPath, ".codetect")
+		if err := os.MkdirAll(indexDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "error: creating index directory: %v\n", err)
+			os.Exit(1)
+		}
+		// Override path for SQLite to be relative to indexed directory
+		dbConfig.Path = filepath.Join(indexDir, "symbols.db")
 	}
 
-	dbPath := filepath.Join(indexDir, "symbols.db")
+	// Convert to db.Config
+	cfg := dbConfig.ToDBConfig()
+
 	fmt.Fprintf(os.Stderr, "[codetect-index] indexing %s\n", absPath)
-	fmt.Fprintf(os.Stderr, "[codetect-index] database: %s\n", dbPath)
+	fmt.Fprintf(os.Stderr, "[codetect-index] database: %s\n", dbConfig.String())
 
 	start := time.Now()
 
-	// Open or create index
-	idx, err := symbols.NewIndex(dbPath)
+	// Open or create index using config-aware constructor
+	idx, err := symbols.NewIndexWithConfig(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
@@ -181,25 +192,40 @@ func runEmbed(args []string) {
 
 	fmt.Fprintf(os.Stderr, "[codetect-index] using provider: %s\n", embedder.ProviderID())
 
-	// Open database
-	indexDir := filepath.Join(absPath, ".codetect")
-	dbPath := filepath.Join(indexDir, "symbols.db")
+	// Load database configuration from environment
+	dbConfig := config.LoadDatabaseConfigFromEnv()
 
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "[codetect-index] error: no symbol index found")
-		fmt.Fprintln(os.Stderr, "[codetect-index] run 'codetect-index index' first")
-		os.Exit(1)
+	// For SQLite, verify index exists and set path relative to target
+	if dbConfig.Type == db.DatabaseSQLite {
+		indexDir := filepath.Join(absPath, ".codetect")
+		dbPath := filepath.Join(indexDir, "symbols.db")
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "[codetect-index] error: no symbol index found")
+			fmt.Fprintln(os.Stderr, "[codetect-index] run 'codetect-index index' first")
+			os.Exit(1)
+		}
+		dbConfig.Path = dbPath
 	}
 
-	idx, err := symbols.NewIndex(dbPath)
+	// Convert to db.Config
+	dbCfg := dbConfig.ToDBConfig()
+
+	fmt.Fprintf(os.Stderr, "[codetect-index] database: %s\n", dbConfig.String())
+
+	// Open index using config-aware constructor
+	idx, err := symbols.NewIndexWithConfig(dbCfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
 	}
 	defer idx.Close()
 
-	// Create embedding store and semantic searcher
-	store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB())
+	// Create embedding store with dialect-aware constructor
+	store, err := embedding.NewEmbeddingStoreWithOptions(
+		idx.DBAdapter(),
+		idx.Dialect(),
+		dbConfig.VectorDimensions,
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: creating embedding store: %v\n", err)
 		os.Exit(1)
@@ -402,13 +428,24 @@ func runStats(args []string) {
 		os.Exit(1)
 	}
 
-	dbPath := filepath.Join(absPath, ".codetect", "symbols.db")
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "error: no index found (run 'index' first)")
-		os.Exit(1)
+	// Load database configuration from environment
+	dbConfig := config.LoadDatabaseConfigFromEnv()
+
+	// For SQLite, verify index exists and set path relative to target
+	if dbConfig.Type == db.DatabaseSQLite {
+		dbPath := filepath.Join(absPath, ".codetect", "symbols.db")
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "error: no index found (run 'index' first)")
+			os.Exit(1)
+		}
+		dbConfig.Path = dbPath
 	}
 
-	idx, err := symbols.NewIndex(dbPath)
+	// Convert to db.Config
+	dbCfg := dbConfig.ToDBConfig()
+
+	// Open index using config-aware constructor
+	idx, err := symbols.NewIndexWithConfig(dbCfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
@@ -421,12 +458,16 @@ func runStats(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Index: %s\n", dbPath)
+	fmt.Printf("Database: %s\n", dbConfig.String())
 	fmt.Printf("Symbols: %d\n", symbolCount)
 	fmt.Printf("Files: %d\n", fileCount)
 
-	// Try to get embedding stats
-	store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB())
+	// Try to get embedding stats using dialect-aware constructor
+	store, err := embedding.NewEmbeddingStoreWithOptions(
+		idx.DBAdapter(),
+		idx.Dialect(),
+		dbConfig.VectorDimensions,
+	)
 	if err == nil {
 		embCount, embFileCount, err := store.Stats()
 		if err == nil && embCount > 0 {
@@ -453,19 +494,27 @@ Embed Options:
   --provider   Embedding provider (ollama, litellm, off)
   --model      Embedding model (provider-specific default if empty)
 
-Environment Variables:
+Database Environment Variables:
+  CODETECT_DB_TYPE              Database type: sqlite (default), postgres
+  CODETECT_DB_DSN               PostgreSQL connection string
+  CODETECT_DB_PATH              SQLite database path override
+  CODETECT_VECTOR_DIMENSIONS    Vector dimensions [default: 768]
+
+Embedding Environment Variables:
   CODETECT_EMBEDDING_PROVIDER   Provider (ollama, litellm, off) [default: ollama]
   CODETECT_OLLAMA_URL           Ollama URL [default: http://localhost:11434]
   CODETECT_LITELLM_URL          LiteLLM URL [default: http://localhost:4000]
   CODETECT_LITELLM_API_KEY      LiteLLM API key
   CODETECT_EMBEDDING_MODEL      Model override
-  CODETECT_EMBEDDING_DIMENSIONS Dimensions override
 
-The index is stored in .codetect/symbols.db relative to the indexed path.
+Database:
+  Default: SQLite stored in .codetect/symbols.db relative to indexed path.
+  PostgreSQL: Set CODETECT_DB_TYPE=postgres and CODETECT_DB_DSN.
 
 Requirements:
   - universal-ctags (for symbol extraction)
   - Ollama OR LiteLLM (optional, for semantic search)
+  - PostgreSQL + pgvector (optional, for production deployments)
 
 Install:
   macOS:   brew install universal-ctags

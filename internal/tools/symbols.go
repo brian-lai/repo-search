@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"codetect/internal/config"
+	"codetect/internal/db"
 	"codetect/internal/mcp"
 	"codetect/internal/search/symbols"
 )
@@ -155,17 +157,28 @@ func registerListDefsInFile(server *mcp.Server) {
 	server.RegisterTool(tool, handler)
 }
 
-// openIndex opens the symbol index for the current working directory
+// openIndex opens the symbol index for the current working directory.
+// Uses database configuration from environment variables, supporting both
+// SQLite (default) and PostgreSQL backends.
 func openIndex() (*symbols.Index, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("getting working directory: %w", err)
+	// Load database configuration from environment
+	dbConfig := config.LoadDatabaseConfigFromEnv()
+
+	// For SQLite, use path relative to current working directory
+	if dbConfig.Type == db.DatabaseSQLite {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("getting working directory: %w", err)
+		}
+
+		dbPath := filepath.Join(cwd, ".codetect", "symbols.db")
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("no symbol index found - run 'make index' first")
+		}
+		dbConfig.Path = dbPath
 	}
 
-	dbPath := filepath.Join(cwd, ".codetect", "symbols.db")
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("no symbol index found - run 'make index' first")
-	}
-
-	return symbols.NewIndex(dbPath)
+	// Convert to db.Config and open with config-aware constructor
+	cfg := dbConfig.ToDBConfig()
+	return symbols.NewIndexWithConfig(cfg)
 }

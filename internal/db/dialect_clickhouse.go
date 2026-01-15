@@ -77,7 +77,7 @@ func (d *ClickHouseDialect) CreateTableSQL(table string, columns []ColumnDef) st
 	var orderByColumns []string
 
 	for _, col := range columns {
-		def := d.columnDefSQL(col)
+		def := d.columnDefSQL(col, false) // ClickHouse doesn't use inline PRIMARY KEY
 		colDefs = append(colDefs, def)
 
 		// Use primary key columns for ORDER BY (required in ClickHouse)
@@ -103,7 +103,9 @@ func (d *ClickHouseDialect) CreateTableSQL(table string, columns []ColumnDef) st
 	return sql
 }
 
-func (d *ClickHouseDialect) columnDefSQL(col ColumnDef) string {
+func (d *ClickHouseDialect) columnDefSQL(col ColumnDef, _ bool) string {
+	// Note: ClickHouse doesn't use PRIMARY KEY constraints in column definitions
+	// Primary keys are handled via ORDER BY clause
 	var parts []string
 
 	parts = append(parts, col.Name)

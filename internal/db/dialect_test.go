@@ -220,10 +220,11 @@ func TestDialects_InitStatements(t *testing.T) {
 		t.Error("SQLite init statements should include WAL mode")
 	}
 
-	// Postgres and ClickHouse should have empty init statements
+	// Postgres should have pgvector extension init statement
 	postgres := &PostgresDialect{}
-	if len(postgres.InitStatements()) != 0 {
-		t.Error("Postgres should have no init statements")
+	pgInit := postgres.InitStatements()
+	if len(pgInit) != 1 || pgInit[0] != "CREATE EXTENSION IF NOT EXISTS vector" {
+		t.Errorf("Postgres init statements should enable pgvector, got: %v", pgInit)
 	}
 
 	clickhouse := &ClickHouseDialect{}

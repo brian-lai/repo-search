@@ -94,14 +94,24 @@ func (d *PostgresDialect) UpsertSQL(table string, columns []string, conflictColu
 }
 
 func (d *PostgresDialect) CreateTableSQL(table string, columns []ColumnDef) string {
+	// Count primary key columns first to determine if we need a composite PK
+	var primaryKeyCount int
+	for _, col := range columns {
+		if col.PrimaryKey && col.Type != ColTypeAutoIncrement {
+			primaryKeyCount++
+		}
+	}
+
 	var colDefs []string
 	var primaryKeys []string
+	useCompositePK := primaryKeyCount > 1 // Only use table-level PK constraint for composite keys
 
 	for _, col := range columns {
-		def := d.columnDefSQL(col)
+		def := d.columnDefSQL(col, useCompositePK)
 		colDefs = append(colDefs, def)
 
-		if col.PrimaryKey && col.Type != ColTypeAutoIncrement {
+		// Collect composite primary key columns (only when we have multiple PKs)
+		if useCompositePK && col.PrimaryKey && col.Type != ColTypeAutoIncrement {
 			primaryKeys = append(primaryKeys, col.Name)
 		}
 	}
@@ -109,7 +119,8 @@ func (d *PostgresDialect) CreateTableSQL(table string, columns []ColumnDef) stri
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n    %s",
 		table, strings.Join(colDefs, ",\n    "))
 
-	if len(primaryKeys) > 0 {
+	// Add composite primary key if needed (not for AUTOINCREMENT columns)
+	if len(primaryKeys) > 1 {
 		sql += fmt.Sprintf(",\n    PRIMARY KEY (%s)", strings.Join(primaryKeys, ", "))
 	}
 
@@ -117,7 +128,7 @@ func (d *PostgresDialect) CreateTableSQL(table string, columns []ColumnDef) stri
 	return sql
 }
 
-func (d *PostgresDialect) columnDefSQL(col ColumnDef) string {
+func (d *PostgresDialect) columnDefSQL(col ColumnDef, useCompositePK bool) string {
 	var parts []string
 
 	parts = append(parts, col.Name)
@@ -138,7 +149,8 @@ func (d *PostgresDialect) columnDefSQL(col ColumnDef) string {
 		parts = append(parts, d.mapColumnType(col.Type))
 	}
 
-	if col.PrimaryKey {
+	// Add inline PRIMARY KEY only if we're not using a composite PK constraint
+	if col.PrimaryKey && !useCompositePK {
 		parts = append(parts, "PRIMARY KEY")
 	}
 
