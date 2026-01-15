@@ -133,6 +133,8 @@ func (d *SQLiteDialect) mapColumnType(ct ColumnType) string {
 		return "REAL"
 	case ColTypeBoolean:
 		return "INTEGER" // SQLite uses 0/1 for booleans
+	case ColTypeVector:
+		return "TEXT" // Store vectors as JSON in SQLite
 	default:
 		return "TEXT"
 	}

@@ -68,12 +68,13 @@ type Dialect interface {
 
 // ColumnDef defines a column for table creation.
 type ColumnDef struct {
-	Name       string
-	Type       ColumnType
-	Nullable   bool
-	PrimaryKey bool
-	Unique     bool
-	Default    string // SQL expression for default value
+	Name            string
+	Type            ColumnType
+	Nullable        bool
+	PrimaryKey      bool
+	Unique          bool
+	Default         string // SQL expression for default value
+	VectorDimension int    // For ColTypeVector: number of dimensions (e.g., 768)
 }
 
 // ColumnType represents abstract column types that map to database-specific types.
@@ -87,6 +88,7 @@ const (
 	ColTypeReal
 	ColTypeBoolean
 	ColTypeAutoIncrement // Auto-incrementing primary key
+	ColTypeVector        // Vector type for pgvector (PostgreSQL) or JSON (SQLite)
 )
 
 // String returns the string representation of the column type.
@@ -106,6 +108,8 @@ func (ct ColumnType) String() string {
 		return "BOOLEAN"
 	case ColTypeAutoIncrement:
 		return "AUTOINCREMENT"
+	case ColTypeVector:
+		return "VECTOR"
 	default:
 		return "UNKNOWN"
 	}
