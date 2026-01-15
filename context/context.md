@@ -10,30 +10,56 @@ Executing: Multi-Repository Isolation - Phase 1: Schema Changes
 
 ### Symbol Index Schema (`internal/search/symbols/schema.go`)
 
-- [ ] Add `repo_root` column to symbols table in `initSchemaWithAdapter()`
-- [ ] Update symbols unique index to include `repo_root`
-- [ ] Add `repo_root` column to files table
-- [ ] Add composite unique index for files `(repo_root, path)`
-- [ ] Add `idx_symbols_repo_path` index for efficient queries
-- [ ] Update SQLite hardcoded schema with `repo_root`
-- [ ] Increment schema version to 2
+- [x] Add `repo_root` column to symbols table in `initSchemaWithAdapter()`
+- [x] Update symbols unique index to include `repo_root`
+- [x] Add `repo_root` column to files table
+- [x] Add composite unique index for files `(repo_root, path)`
+- [x] Add `idx_symbols_repo_path` index for efficient queries
+- [x] Update SQLite hardcoded schema with `repo_root`
+- [x] Increment schema version to 2
+
+### Symbol Index Queries (`internal/search/symbols/index.go`)
+
+- [x] Update `FindSymbol()` to filter by `repo_root`
+- [x] Update `ListDefsInFile()` to filter by `repo_root`
+- [x] Update `Update()` to include `repo_root` in inserts/deletes
+- [x] Update `FullReindex()` to scope deletions by `repo_root`
+- [x] Update `getFilesToIndex()` to filter by `repo_root`
+- [x] Update `Stats()` to scope by `repo_root`
 
 ### Embedding Store Schema (`internal/embedding/store.go`)
 
-- [ ] Add `repo_root` column to `embeddingColumnsForDialect()`
-- [ ] Update embeddings unique index to include `repo_root`
-- [ ] Update SQLite hardcoded embeddings schema
-- [ ] Add `repoRoot` field to `EmbeddingStore` struct
+- [x] Add `repo_root` column to `embeddingColumnsForDialect()`
+- [x] Update embeddings unique index to include `repo_root`
+- [x] Update SQLite hardcoded embeddings schema
+- [x] Add `repoRoot` field to `EmbeddingStore` struct
+
+### Embedding Store Queries (`internal/embedding/store.go`)
+
+- [x] Update `Save()` to include `repo_root`
+- [x] Update `SaveBatch()` to include `repo_root`
+- [x] Update `GetByPath()` to filter by `repo_root`
+- [x] Update `GetAll()` to filter by `repo_root`
+- [x] Update `HasEmbedding()` to filter by `repo_root`
+- [x] Update `DeleteByPath()` to filter by `repo_root`
+- [x] Update `DeleteAll()` to scope by `repo_root`
+- [x] Update `Count()` to scope by `repo_root`
+- [x] Update `Stats()` to scope by `repo_root`
 
 ### Verification
 
-- [ ] Run unit tests: `go test ./internal/search/symbols/... ./internal/embedding/...`
+- [x] Run unit tests: `go test ./internal/search/symbols/... ./internal/embedding/...`
 - [ ] Test fresh PostgreSQL schema creation
 - [ ] Test fresh SQLite schema creation
 
 ## Progress Notes
 
-_Update this section as you complete items._
+**2026-01-15**: Completed Phase 1 schema changes and Phase 2 query updates:
+- Added `repo_root TEXT NOT NULL` column to symbols, files, and embeddings tables
+- Updated all unique indexes to include `repo_root`
+- Added composite indexes for repo-scoped queries
+- Updated all database queries to filter by `repo_root`
+- All unit tests passing
 
 ---
 

@@ -149,9 +149,9 @@ func TestClearSymbols(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Insert a test symbol
-	_, err = db.Exec(`INSERT INTO symbols (name, kind, path, line) VALUES (?, ?, ?, ?)`,
-		"TestFunc", "function", "test.go", 10)
+	// Insert a test symbol with repo_root (required NOT NULL column)
+	_, err = db.Exec(`INSERT INTO symbols (repo_root, name, kind, path, line) VALUES (?, ?, ?, ?, ?)`,
+		"/test/repo", "TestFunc", "function", "test.go", 10)
 	if err != nil {
 		t.Fatalf("Insert error = %v", err)
 	}
