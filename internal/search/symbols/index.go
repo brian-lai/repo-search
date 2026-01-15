@@ -53,9 +53,17 @@ func NewIndexWithConfig(cfg db.Config) (*Index, error) {
 		return nil, err
 	}
 
+	dialect := cfg.Dialect()
+
+	// Initialize schema using dialect-aware DDL
+	if err := initSchemaWithAdapter(database, dialect); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("initializing schema: %w", err)
+	}
+
 	return &Index{
 		adapter: database,
-		dialect: cfg.Dialect(),
+		dialect: dialect,
 		dbPath:  cfg.Path,
 	}, nil
 }
