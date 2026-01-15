@@ -1,4 +1,4 @@
-// Package daemon provides background indexing for repo-search.
+// Package daemon provides background indexing for codetect.
 // It watches registered projects for file changes and triggers re-indexing.
 package daemon
 
@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"repo-search/internal/registry"
+	"codetect/internal/registry"
 
 	"github.com/fsnotify/fsnotify"
 	ignore "github.com/sabhiram/go-gitignore"
@@ -59,7 +59,7 @@ func DefaultConfig() Config {
 		DebounceMs: 500,
 		LogPath:    filepath.Join(configDir, "daemon.log"),
 		PIDPath:    filepath.Join(configDir, "daemon.pid"),
-		SocketPath: fmt.Sprintf("/tmp/repo-search-%d.sock", uid),
+		SocketPath: fmt.Sprintf("/tmp/codetect-%d.sock", uid),
 	}
 }
 
@@ -336,8 +336,8 @@ func (d *Daemon) indexWorker() {
 func (d *Daemon) runIndex(projectPath string) {
 	d.logger.Printf("Indexing: %s", projectPath)
 
-	// Run repo-search-index
-	cmd := exec.CommandContext(d.ctx, "repo-search-index", "index", projectPath)
+	// Run codetect-index
+	cmd := exec.CommandContext(d.ctx, "codetect-index", "index", projectPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		d.logger.Printf("Index failed for %s: %v\n%s", projectPath, err, output)
@@ -423,7 +423,7 @@ func isIgnoredDir(name string) bool {
 
 		// Generated/Cache
 		".cache":       true,
-		".repo_search": true,
+		".codetect": true,
 		".next":        true,
 		".nuxt":        true,
 		".turbo":       true,

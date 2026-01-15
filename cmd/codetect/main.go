@@ -4,19 +4,19 @@ import (
 	"log"
 	"os"
 
-	"repo-search/internal/mcp"
-	"repo-search/internal/tools"
+	"codetect/internal/mcp"
+	"codetect/internal/tools"
 )
 
 const (
-	serverName    = "repo-search"
+	serverName    = "codetect"
 	serverVersion = "0.1.0"
 )
 
 func main() {
 	// Log to stderr so stdout is clean for MCP JSON-RPC
 	log.SetOutput(os.Stderr)
-	log.SetPrefix("[repo-search] ")
+	log.SetPrefix("[codetect] ")
 
 	server := mcp.NewServer(serverName, serverVersion)
 

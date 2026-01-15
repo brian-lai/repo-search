@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"repo-search/internal/search/symbols"
+	"codetect/internal/search/symbols"
 )
 
 const (

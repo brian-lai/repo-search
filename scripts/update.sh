@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# repo-search update script
-# Updates repo-search to the latest version from GitHub
+# codetect update script
+# Updates codetect to the latest version from GitHub
 #
 
 set -e
@@ -14,12 +14,12 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Installation paths
-INSTALL_PREFIX="${REPO_SEARCH_PREFIX:-$HOME/.local}"
+INSTALL_PREFIX="${CODETECT_PREFIX:-$HOME/.local}"
 BIN_DIR="$INSTALL_PREFIX/bin"
-SHARE_DIR="$INSTALL_PREFIX/share/repo-search"
+SHARE_DIR="$INSTALL_PREFIX/share/codetect"
 
-# Source repo location (where repo-search was cloned)
-SOURCE_DIR="${REPO_SEARCH_SOURCE:-$HOME/dev/repo-search}"
+# Source repo location (where codetect was cloned)
+SOURCE_DIR="${CODETECT_SOURCE:-$HOME/dev/codetect}"
 
 success() {
     echo -e "${GREEN}✓${NC} $1"
@@ -37,15 +37,15 @@ info() {
     echo -e "  $1"
 }
 
-echo -e "${CYAN}Updating repo-search...${NC}"
+echo -e "${CYAN}Updating codetect...${NC}"
 echo ""
 
 # Check if source directory exists
 if [[ ! -d "$SOURCE_DIR" ]]; then
     error "Source directory not found: $SOURCE_DIR"
-    info "Set REPO_SEARCH_SOURCE to the location of your repo-search clone"
+    info "Set CODETECT_SOURCE to the location of your codetect clone"
     info "Or clone it:"
-    info "  git clone https://github.com/brian-lai/repo-search.git $SOURCE_DIR"
+    info "  git clone https://github.com/brian-lai/codetect.git $SOURCE_DIR"
     exit 1
 fi
 
@@ -96,10 +96,10 @@ echo ""
 echo "Installing to $BIN_DIR..."
 mkdir -p "$BIN_DIR" "$SHARE_DIR/templates"
 
-cp dist/repo-search "$BIN_DIR/repo-search-mcp"
-cp dist/repo-search-index "$BIN_DIR/repo-search-index"
-cp scripts/repo-search-wrapper.sh "$BIN_DIR/repo-search"
-chmod +x "$BIN_DIR/repo-search" "$BIN_DIR/repo-search-mcp" "$BIN_DIR/repo-search-index"
+cp dist/codetect "$BIN_DIR/codetect-mcp"
+cp dist/codetect-index "$BIN_DIR/codetect-index"
+cp scripts/codetect-wrapper.sh "$BIN_DIR/codetect"
+chmod +x "$BIN_DIR/codetect" "$BIN_DIR/codetect-mcp" "$BIN_DIR/codetect-index"
 
 # Install templates if they exist
 if [[ -d "templates" ]]; then
@@ -111,4 +111,4 @@ echo ""
 
 echo -e "${GREEN}Update complete!${NC}"
 echo ""
-echo "Run 'repo-search doctor' to verify the installation."
+echo "Run 'codetect doctor' to verify the installation."

@@ -1,4 +1,4 @@
-# Phase 1 – Local Keyword Search MCP (repo-search)
+# Phase 1 – Local Keyword Search MCP (codetect)
 
 This document captures **Phase 1** of the Cursor-like setup for Claude Code: a **local MCP server** written in Go that provides fast keyword search and file retrieval, plus a one-command launcher.
 
@@ -26,7 +26,7 @@ Claude Code
    │
    │ (MCP stdio)
    ▼
-repo-search (Go binary)
+codetect (Go binary)
    │
    ├─ search_keyword → ripgrep (rg)
    └─ get_file       → direct file read
@@ -39,10 +39,10 @@ Claude **never scans the repo itself**. All retrieval flows through MCP tools.
 ## Repo Layout (Phase 1)
 
 ```text
-repo-search/
+codetect/
   cmd/
-    repo-search/              # MCP server (stdio)
-    repo-search-index/        # indexer CLI (no-op in Phase 1)
+    codetect/              # MCP server (stdio)
+    codetect-index/        # indexer CLI (no-op in Phase 1)
   internal/
     mcp/                      # MCP transport (JSON over stdio)
     search/
@@ -67,7 +67,7 @@ Registers the MCP server **at project scope**, so entering the repo automaticall
 ```json
 {
   "mcpServers": {
-    "repo-search": {
+    "codetect": {
       "command": "make",
       "args": ["mcp"],
       "env": {}
@@ -105,15 +105,15 @@ This mirrors Cursor’s "open repo → ready" behavior.
 ## Makefile (Phase 1)
 
 ```makefile
-BINARY=dist/repo-search
-INDEXER=dist/repo-search-index
+BINARY=dist/codetect
+INDEXER=dist/codetect-index
 
 .PHONY: build mcp index doctor clean
 
 build:
 	mkdir -p dist
-	go build -o $(BINARY) ./cmd/repo-search
-	go build -o $(INDEXER) ./cmd/repo-search-index
+	go build -o $(BINARY) ./cmd/codetect
+	go build -o $(INDEXER) ./cmd/codetect-index
 
 mcp: build
 	./$(BINARY)
@@ -126,7 +126,7 @@ doctor:
 	@echo "ok"
 
 clean:
-	rm -rf dist .repo_search
+	rm -rf dist .codetect
 ```
 
 ---
@@ -179,7 +179,7 @@ No networking, no persistence, no watchers yet.
 
 ## Indexer CLI (Phase 1)
 
-### `repo-search-index`
+### `codetect-index`
 
 Phase 1 behavior:
 

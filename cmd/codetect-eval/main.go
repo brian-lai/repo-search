@@ -1,4 +1,4 @@
-// repo-search-eval runs evaluation tests comparing MCP vs non-MCP performance.
+// codetect-eval runs evaluation tests comparing MCP vs non-MCP performance.
 package main
 
 import (
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"repo-search/evals"
+	"codetect/evals"
 )
 
 const version = "0.1.0"
@@ -31,7 +31,7 @@ func main() {
 	case "logs":
 		showLogs(os.Args[2:])
 	case "version":
-		fmt.Printf("repo-search-eval v%s\n", version)
+		fmt.Printf("codetect-eval v%s\n", version)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -83,7 +83,7 @@ func runEval(args []string) {
 	// Create runner and load test cases
 	runner := evals.NewRunner(config)
 
-	// Ensure .repo_search is in .gitignore when running against a target repo
+	// Ensure .codetect is in .gitignore when running against a target repo
 	if isExternalRepo {
 		if err := runner.EnsureGitignore(); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not update .gitignore: %v\n", err)
@@ -106,7 +106,7 @@ func runEval(args []string) {
 		fmt.Fprintln(os.Stderr, "")
 
 		// Check if we're evaluating a different repo
-		repoEvalDir := filepath.Join(absRepoPath, ".repo_search", "evals", "cases")
+		repoEvalDir := filepath.Join(absRepoPath, ".codetect", "evals", "cases")
 		if absRepoPath != "." {
 			fmt.Fprintf(os.Stderr, "For repo-specific eval cases, create them in:\n")
 			fmt.Fprintf(os.Stderr, "  %s\n", repoEvalDir)
@@ -116,9 +116,9 @@ func runEval(args []string) {
 		fmt.Fprintln(os.Stderr, "To create eval cases, start a Claude Code session in the target repo and paste:")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "--------------------------------------------------------------------------------")
-		fmt.Fprintln(os.Stderr, `Create eval test cases for the repo-search MCP tool in .repo_search/evals/cases/
+		fmt.Fprintln(os.Stderr, `Create eval test cases for the codetect MCP tool in .codetect/evals/cases/
 
-These test cases will be used by repo-search-eval to measure MCP search performance
+These test cases will be used by codetect-eval to measure MCP search performance
 against this repository (without pre-indexing). Create JSONL files organized by
 category:
 - search.jsonl: keyword/regex searches, file pattern matching
@@ -267,7 +267,7 @@ func showLogs(args []string) {
 	}
 
 	if len(logs) == 0 {
-		fmt.Fprintln(os.Stderr, "No logs found. Run 'repo-search-eval run' first to generate logs.")
+		fmt.Fprintln(os.Stderr, "No logs found. Run 'codetect-eval run' first to generate logs.")
 		os.Exit(1)
 	}
 
@@ -340,10 +340,10 @@ func formatBytes(b int64) string {
 }
 
 func printUsage() {
-	fmt.Println(`repo-search-eval - Evaluate MCP vs non-MCP performance
+	fmt.Println(`codetect-eval - Evaluate MCP vs non-MCP performance
 
 Usage:
-  repo-search-eval <command> [options]
+  codetect-eval <command> [options]
 
 Commands:
   run      Run evaluation test cases
@@ -373,23 +373,23 @@ Logs Options:
 
 Examples:
   # Run all tests on current directory
-  repo-search-eval run
+  codetect-eval run
 
   # Run only search tests on a specific repo
-  repo-search-eval run --repo /path/to/project --category search
+  codetect-eval run --repo /path/to/project --category search
 
   # View the most recent report
-  repo-search-eval report
+  codetect-eval report
 
   # List available test cases
-  repo-search-eval list
+  codetect-eval list
 
   # List all logs for a repo
-  repo-search-eval logs --repo /path/to/project --list
+  codetect-eval logs --repo /path/to/project --list
 
   # View the latest log
-  repo-search-eval logs --repo /path/to/project --latest
+  codetect-eval logs --repo /path/to/project --latest
 
   # View logs for a specific test case
-  repo-search-eval logs --repo /path/to/project --case search-001`)
+  codetect-eval logs --repo /path/to/project --case search-001`)
 }

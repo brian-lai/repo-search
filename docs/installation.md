@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers all installation methods for repo-search.
+This guide covers all installation methods for codetect.
 
 ## Requirements
 
@@ -22,8 +22,8 @@ This guide covers all installation methods for repo-search.
 The interactive installer provides a guided setup experience:
 
 ```bash
-git clone https://github.com/brian-lai/repo-search.git
-cd repo-search
+git clone https://github.com/brian-lai/codetect.git
+cd codetect
 ./install.sh
 ```
 
@@ -35,7 +35,7 @@ The installer will:
 3. **Database setup** - Choose between SQLite (simple) or PostgreSQL+pgvector (scalable)
 4. **Build and install** - Compile binaries and optionally install globally to `~/.local/bin`
 5. **Configure PATH** - Automatically add `~/.local/bin` to your shell profile if needed
-6. **Initial indexing** - Optionally index the repo-search codebase itself
+6. **Initial indexing** - Optionally index the codetect codebase itself
 
 ### What the Installer Does
 
@@ -52,7 +52,7 @@ The installer will:
 
 **Global Installation:**
 - Installs binaries to `~/.local/bin` for easy access from anywhere
-- Creates global config at `~/.config/repo-search/config.env`
+- Creates global config at `~/.config/codetect/config.env`
 - Automatically updates your shell profile ($PATH) if needed
 
 ### Installation Flow
@@ -101,13 +101,13 @@ The installer runs in 6 steps:
   - Falls back to SQLite if PostgreSQL setup fails
 
 **Step 4: Build and Install**
-- Builds all binaries (repo-search-mcp, repo-search-index, repo-search-daemon)
+- Builds all binaries (codetect-mcp, codetect-index, codetect-daemon)
 - Asks if you want to install globally
 - If yes:
   - Installs to `~/.local/bin`
   - Checks if `~/.local/bin` is in PATH
   - Offers to add to PATH automatically by updating shell profile
-  - Creates global config at `~/.config/repo-search/config.env`
+  - Creates global config at `~/.config/codetect/config.env`
 
 **Step 5: Configuration**
 - Generates configuration file with your selected options
@@ -117,7 +117,7 @@ The installer runs in 6 steps:
 - For LiteLLM: saves URL, API key, and model name
 
 **Step 6: Initial Setup (Optional)**
-- If ctags is available, offers to index the repo-search codebase
+- If ctags is available, offers to index the codetect codebase
 - If semantic search is enabled, offers to generate embeddings
 - Shows final summary with:
   - Database backend selection
@@ -131,8 +131,8 @@ The installer runs in 6 steps:
 ### 1. Clone and Build
 
 ```bash
-git clone https://github.com/brian-lai/repo-search.git
-cd repo-search
+git clone https://github.com/brian-lai/codetect.git
+cd codetect
 make install
 ```
 
@@ -153,7 +153,7 @@ source ~/.zshrc  # or ~/.bashrc
 ### 3. Verify Installation
 
 ```bash
-repo-search doctor
+codetect doctor
 ```
 
 ## Installing Dependencies
@@ -309,36 +309,36 @@ POSTGRES_PORT=5433 docker-compose up -d postgres
 **Connection details:**
 - Host: `localhost`
 - Port: `5432` (or custom)
-- User: `repo_search`
-- Password: `repo_search`
-- Database: `repo_search`
-- DSN: `postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable`
+- User: `codetect`
+- Password: `codetect`
+- Database: `codetect`
+- DSN: `postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable`
 
 The Docker setup automatically:
 - Uses the official `pgvector/pgvector:pg16` image
 - Enables the pgvector extension on startup
-- Persists data in a named Docker volume (`repo-search-pgdata`)
+- Persists data in a named Docker volume (`codetect-pgdata`)
 - Includes health checks
 - Restarts automatically unless stopped
 
 ## Per-Project Setup
 
-After installing repo-search globally, set it up in each project:
+After installing codetect globally, set it up in each project:
 
 ```bash
 cd /path/to/your/project
 
 # Initialize (creates .mcp.json)
-repo-search init
+codetect init
 
 # Index symbols (requires ctags)
-repo-search index
+codetect index
 
 # Generate embeddings (requires Ollama or LiteLLM)
-repo-search embed
+codetect embed
 
 # Verify setup
-repo-search doctor
+codetect doctor
 ```
 
 ## CLI Commands Reference
@@ -347,32 +347,32 @@ repo-search doctor
 
 | Command | Description |
 |---------|-------------|
-| `repo-search init` | Initialize repo-search in current directory |
-| `repo-search index` | Index symbols (requires ctags) |
-| `repo-search embed` | Generate embeddings for semantic search |
-| `repo-search doctor` | Check installation and dependencies |
-| `repo-search stats` | Show index statistics |
-| `repo-search migrate` | Discover existing indexes and register them |
-| `repo-search update` | Update to latest version from GitHub |
-| `repo-search help` | Show all commands |
+| `codetect init` | Initialize codetect in current directory |
+| `codetect index` | Index symbols (requires ctags) |
+| `codetect embed` | Generate embeddings for semantic search |
+| `codetect doctor` | Check installation and dependencies |
+| `codetect stats` | Show index statistics |
+| `codetect migrate` | Discover existing indexes and register them |
+| `codetect update` | Update to latest version from GitHub |
+| `codetect help` | Show all commands |
 
 ### Daemon Commands
 
 | Command | Description |
 |---------|-------------|
-| `repo-search daemon start` | Start background indexing daemon |
-| `repo-search daemon stop` | Stop daemon |
-| `repo-search daemon status` | Show daemon status |
-| `repo-search daemon logs` | View daemon logs |
+| `codetect daemon start` | Start background indexing daemon |
+| `codetect daemon stop` | Stop daemon |
+| `codetect daemon status` | Show daemon status |
+| `codetect daemon logs` | View daemon logs |
 
 ### Registry Commands
 
 | Command | Description |
 |---------|-------------|
-| `repo-search registry list` | List registered projects |
-| `repo-search registry add` | Add current project to registry |
-| `repo-search registry remove` | Remove a project from registry |
-| `repo-search registry stats` | Show aggregate statistics |
+| `codetect registry list` | List registered projects |
+| `codetect registry add` | Add current project to registry |
+| `codetect registry remove` | Remove a project from registry |
+| `codetect registry stats` | Show aggregate statistics |
 
 ## Configuration
 
@@ -380,60 +380,60 @@ repo-search doctor
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `REPO_SEARCH_DB_TYPE` | Database backend: `sqlite` or `postgres` | `sqlite` |
-| `REPO_SEARCH_DB_DSN` | PostgreSQL connection string (required if type=postgres) | (none) |
-| `REPO_SEARCH_DB_PATH` | SQLite database path (used if type=sqlite) | `.repo_search/symbols.db` |
-| `REPO_SEARCH_EMBEDDING_PROVIDER` | Provider: `ollama`, `litellm`, or `off` | `ollama` |
-| `REPO_SEARCH_OLLAMA_URL` | Ollama server URL | `http://localhost:11434` |
-| `REPO_SEARCH_LITELLM_URL` | LiteLLM server URL | `http://localhost:4000` |
-| `REPO_SEARCH_LITELLM_API_KEY` | API key for LiteLLM | (none) |
-| `REPO_SEARCH_EMBEDDING_MODEL` | Override the embedding model | (provider default) |
-| `REPO_SEARCH_EMBEDDING_DIMENSIONS` | Override embedding dimensions | (model default) |
+| `CODETECT_DB_TYPE` | Database backend: `sqlite` or `postgres` | `sqlite` |
+| `CODETECT_DB_DSN` | PostgreSQL connection string (required if type=postgres) | (none) |
+| `CODETECT_DB_PATH` | SQLite database path (used if type=sqlite) | `.codetect/symbols.db` |
+| `CODETECT_EMBEDDING_PROVIDER` | Provider: `ollama`, `litellm`, or `off` | `ollama` |
+| `CODETECT_OLLAMA_URL` | Ollama server URL | `http://localhost:11434` |
+| `CODETECT_LITELLM_URL` | LiteLLM server URL | `http://localhost:4000` |
+| `CODETECT_LITELLM_API_KEY` | API key for LiteLLM | (none) |
+| `CODETECT_EMBEDDING_MODEL` | Override the embedding model | (provider default) |
+| `CODETECT_EMBEDDING_DIMENSIONS` | Override embedding dimensions | (model default) |
 
 ### Examples
 
 **Using SQLite (default):**
 ```bash
-repo-search embed  # Uses SQLite at .repo_search/symbols.db
+codetect embed  # Uses SQLite at .codetect/symbols.db
 ```
 
 **Using PostgreSQL:**
 ```bash
-export REPO_SEARCH_DB_TYPE=postgres
-export REPO_SEARCH_DB_DSN="postgres://user:password@localhost/repo_search?sslmode=disable"
-repo-search embed
+export CODETECT_DB_TYPE=postgres
+export CODETECT_DB_DSN="postgres://user:password@localhost/codetect?sslmode=disable"
+codetect embed
 ```
 
 **Using Ollama (default):**
 ```bash
-repo-search embed  # Uses Ollama at localhost:11434 with nomic-embed-text
+codetect embed  # Uses Ollama at localhost:11434 with nomic-embed-text
 ```
 
 **Using a custom Ollama model:**
 ```bash
-REPO_SEARCH_EMBEDDING_MODEL=mxbai-embed-large repo-search embed
+CODETECT_EMBEDDING_MODEL=mxbai-embed-large codetect embed
 ```
 
 **Using LiteLLM with OpenAI:**
 ```bash
-export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
-export REPO_SEARCH_LITELLM_API_KEY=sk-...
-export REPO_SEARCH_EMBEDDING_MODEL=text-embedding-3-small
-repo-search embed
+export CODETECT_EMBEDDING_PROVIDER=litellm
+export CODETECT_LITELLM_API_KEY=sk-...
+export CODETECT_EMBEDDING_MODEL=text-embedding-3-small
+codetect embed
 ```
 
 **Using PostgreSQL + LiteLLM:**
 ```bash
-export REPO_SEARCH_DB_TYPE=postgres
-export REPO_SEARCH_DB_DSN="postgres://user:password@localhost/repo_search?sslmode=disable"
-export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
-export REPO_SEARCH_LITELLM_API_KEY=sk-...
-repo-search embed
+export CODETECT_DB_TYPE=postgres
+export CODETECT_DB_DSN="postgres://user:password@localhost/codetect?sslmode=disable"
+export CODETECT_EMBEDDING_PROVIDER=litellm
+export CODETECT_LITELLM_API_KEY=sk-...
+codetect embed
 ```
 
 **Disabling semantic search:**
 ```bash
-REPO_SEARCH_EMBEDDING_PROVIDER=off repo-search embed  # Skips embedding
+CODETECT_EMBEDDING_PROVIDER=off codetect embed  # Skips embedding
 ```
 
 ## Installed Files
@@ -443,12 +443,12 @@ After `make install`, files are placed at:
 ```
 ~/.local/
 ├── bin/
-│   ├── repo-search          # Main CLI (wrapper script)
-│   ├── repo-search-mcp      # MCP server binary
-│   ├── repo-search-index    # Indexer binary
-│   └── repo-search-daemon   # Background daemon binary
+│   ├── codetect          # Main CLI (wrapper script)
+│   ├── codetect-mcp      # MCP server binary
+│   ├── codetect-index    # Indexer binary
+│   └── codetect-daemon   # Background daemon binary
 └── share/
-    └── repo-search/
+    └── codetect/
         └── templates/
             └── mcp.json     # Template for new projects
 ```
@@ -456,38 +456,38 @@ After `make install`, files are placed at:
 Configuration and registry are stored at:
 
 ```
-~/.config/repo-search/
+~/.config/codetect/
 ├── config.env              # Global configuration
 └── registry.json           # Project registry
 ```
 
 ## Per-Project Files
 
-When you run `repo-search init` in a project:
+When you run `codetect init` in a project:
 
 ```
 your-project/
 ├── .mcp.json                # MCP server registration
-└── .repo_search/            # Index storage (gitignored)
+└── .codetect/            # Index storage (gitignored)
     └── symbols.db           # SQLite database
 ```
 
 ## Uninstalling
 
 ```bash
-cd /path/to/repo-search
+cd /path/to/codetect
 make uninstall
 ```
 
 This removes:
-- `~/.local/bin/repo-search*`
-- `~/.local/share/repo-search/`
+- `~/.local/bin/codetect*`
+- `~/.local/share/codetect/`
 
-Project-specific files (`.mcp.json`, `.repo_search/`) are not removed.
+Project-specific files (`.mcp.json`, `.codetect/`) are not removed.
 
 ## Troubleshooting
 
-### `repo-search: command not found`
+### `codetect: command not found`
 
 Ensure `~/.local/bin` is in your PATH:
 ```bash
@@ -510,12 +510,12 @@ ollama serve
 
 Check provider configuration:
 ```bash
-repo-search doctor
+codetect doctor
 ```
 
 Try with explicit provider:
 ```bash
-REPO_SEARCH_EMBEDDING_PROVIDER=ollama repo-search embed
+CODETECT_EMBEDDING_PROVIDER=ollama codetect embed
 ```
 
 ### Port 5432 already in use
@@ -534,7 +534,7 @@ netstat -an | grep 5432
 POSTGRES_PORT=5433 docker-compose up -d postgres
 
 # Update your DSN
-export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5433/repo_search?sslmode=disable"
+export CODETECT_DB_DSN="postgres://codetect:codetect@localhost:5433/codetect?sslmode=disable"
 ```
 
 **Stop conflicting PostgreSQL:**

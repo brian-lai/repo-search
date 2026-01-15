@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // Index is the database-backed symbol index.

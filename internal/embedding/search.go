@@ -209,7 +209,7 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 	}
 
 	if skippedCount > 0 {
-		fmt.Fprintf(os.Stderr, "\n[repo-search-index] skipped %d chunks that failed to embed\n", skippedCount)
+		fmt.Fprintf(os.Stderr, "\n[codetect-index] skipped %d chunks that failed to embed\n", skippedCount)
 	}
 
 	// Save all successful embeddings with provider ID

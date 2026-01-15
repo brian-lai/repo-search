@@ -1,4 +1,4 @@
-// Package registry manages the central project registry for repo-search.
+// Package registry manages the central project registry for codetect.
 // It tracks all indexed projects, their statistics, and watch status.
 package registry
 
@@ -62,10 +62,10 @@ type Registry struct {
 // DefaultConfigDir returns the default config directory path
 func DefaultConfigDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "repo-search")
+		return filepath.Join(xdg, "codetect")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "repo-search")
+	return filepath.Join(home, ".config", "codetect")
 }
 
 // DefaultRegistryPath returns the default registry file path

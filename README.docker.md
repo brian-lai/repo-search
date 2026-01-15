@@ -25,10 +25,10 @@ docker-compose down -v
 
 - **Host:** `localhost`
 - **Port:** `5432`
-- **User:** `repo_search`
-- **Password:** `repo_search`
-- **Database:** `repo_search`
-- **DSN:** `postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable`
+- **User:** `codetect`
+- **Password:** `codetect`
+- **Database:** `codetect`
+- **DSN:** `postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable`
 
 ## Configuration
 
@@ -42,7 +42,7 @@ POSTGRES_PORT=5433 docker-compose up -d postgres
 
 Then update your DSN:
 ```bash
-export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5433/repo_search?sslmode=disable"
+export CODETECT_DB_DSN="postgres://codetect:codetect@localhost:5433/codetect?sslmode=disable"
 ```
 
 ### Environment Variables
@@ -51,15 +51,15 @@ Create a `.env` file in this directory:
 
 ```env
 POSTGRES_PORT=5432
-POSTGRES_USER=repo_search
-POSTGRES_PASSWORD=repo_search
-POSTGRES_DB=repo_search
+POSTGRES_USER=codetect
+POSTGRES_PASSWORD=codetect
+POSTGRES_DB=codetect
 ```
 
 ## Features
 
 - **pgvector extension:** Automatically enabled via `init-pgvector.sql`
-- **Data persistence:** Uses Docker volume `repo-search-pgdata`
+- **Data persistence:** Uses Docker volume `codetect-pgdata`
 - **Health checks:** Monitors PostgreSQL readiness
 - **Auto-restart:** Restarts automatically unless stopped
 
@@ -68,7 +68,7 @@ POSTGRES_DB=repo_search
 Test the connection:
 
 ```bash
-psql "postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable" -c "SELECT extname, extversion FROM pg_extension WHERE extname='vector';"
+psql "postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable" -c "SELECT extname, extversion FROM pg_extension WHERE extname='vector';"
 ```
 
 Expected output:
@@ -115,7 +115,7 @@ docker-compose ps
 
 Check network connectivity:
 ```bash
-docker-compose exec postgres pg_isready -U repo_search
+docker-compose exec postgres pg_isready -U codetect
 ```
 
 ## Data Management
@@ -123,13 +123,13 @@ docker-compose exec postgres pg_isready -U repo_search
 ### Backup
 
 ```bash
-docker-compose exec -T postgres pg_dump -U repo_search repo_search > backup.sql
+docker-compose exec -T postgres pg_dump -U codetect codetect > backup.sql
 ```
 
 ### Restore
 
 ```bash
-cat backup.sql | docker-compose exec -T postgres psql -U repo_search repo_search
+cat backup.sql | docker-compose exec -T postgres psql -U codetect codetect
 ```
 
 ### Reset (delete all data)
@@ -139,21 +139,21 @@ docker-compose down -v
 docker-compose up -d postgres
 ```
 
-## Using with repo-search
+## Using with codetect
 
-After starting the container, configure repo-search:
+After starting the container, configure codetect:
 
 ```bash
-export REPO_SEARCH_DB_TYPE="postgres"
-export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"
+export CODETECT_DB_TYPE="postgres"
+export CODETECT_DB_DSN="postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"
 
 # Generate embeddings
-repo-search embed
+codetect embed
 ```
 
 Or add to your shell profile:
 ```bash
-echo 'export REPO_SEARCH_DB_TYPE="postgres"' >> ~/.zshrc
-echo 'export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"' >> ~/.zshrc
+echo 'export CODETECT_DB_TYPE="postgres"' >> ~/.zshrc
+echo 'export CODETECT_DB_DSN="postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"' >> ~/.zshrc
 source ~/.zshrc
 ```

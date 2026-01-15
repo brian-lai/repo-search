@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // MigrationOptions configures database migration behavior.
