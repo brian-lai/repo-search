@@ -99,20 +99,14 @@ cmd_embed() {
 
 cmd_init() {
     local force=false
+
     if [[ "$1" == "-f" || "$1" == "--force" ]]; then
         force=true
     fi
 
-    if [[ -f ".mcp.json" && "$force" != "true" ]]; then
-        warn ".mcp.json already exists"
-        info "Use 'codetect init --force' to overwrite"
-        return 1
-    fi
-
-    # Check if template exists
-    local template="$SHARE_DIR/templates/mcp.json"
-    if [[ ! -f "$template" ]]; then
-        # Fallback: create inline
+    # If --force, overwrite completely (original behavior)
+    if [[ "$force" == "true" ]]; then
+        warn "Force flag set - overwriting .mcp.json"
         cat > .mcp.json << 'EOF'
 {
   "mcpServers": {
@@ -123,11 +117,92 @@ cmd_init() {
   }
 }
 EOF
-    else
-        cp "$template" .mcp.json
-    fi
+        success "Created .mcp.json (overwrote existing)"
 
-    success "Created .mcp.json"
+    # If file doesn't exist, create it
+    elif [[ ! -f ".mcp.json" ]]; then
+        cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "codetect": {
+      "command": "codetect",
+      "args": ["mcp"]
+    }
+  }
+}
+EOF
+        success "Created .mcp.json"
+
+    # File exists - merge codetect entry
+    else
+        info ".mcp.json exists - merging codetect server entry"
+
+        # Check for Python3
+        if ! command -v python3 &> /dev/null; then
+            error "python3 not found - cannot merge .mcp.json"
+            info "Use 'codetect init --force' to overwrite instead"
+            return 1
+        fi
+
+        # Use Python to merge JSON
+        local python_output
+        python_output=$(python3 << 'PYTHON_SCRIPT' 2>&1
+import json
+import sys
+
+try:
+    # Read existing file
+    with open('.mcp.json', 'r') as f:
+        data = json.load(f)
+
+    # Ensure mcpServers key exists
+    if 'mcpServers' not in data:
+        data['mcpServers'] = {}
+
+    # Check if codetect already exists
+    codetect_exists = 'codetect' in data['mcpServers']
+
+    # Add or update codetect entry
+    data['mcpServers']['codetect'] = {
+        'command': 'codetect',
+        'args': ['mcp']
+    }
+
+    # Write back with formatting
+    with open('.mcp.json', 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')  # Add trailing newline
+
+    # Print status for shell script
+    if codetect_exists:
+        print("UPDATED", end='')
+    else:
+        print("ADDED", end='')
+
+except json.JSONDecodeError as e:
+    print(f"ERROR: Invalid JSON - {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_SCRIPT
+)
+        local python_exit=$?
+
+        if [[ $python_exit -ne 0 ]]; then
+            error "Failed to merge .mcp.json"
+            error "$python_output"
+            info "Your .mcp.json may have invalid JSON syntax"
+            info "Use 'codetect init --force' to overwrite, or fix the file manually"
+            return 1
+        fi
+
+        if [[ "$python_output" == "UPDATED" ]]; then
+            success "Updated codetect entry in .mcp.json"
+        else
+            success "Added codetect to .mcp.json (preserved existing servers)"
+        fi
+    fi
 
     # Register in central registry
     registry_add "$(pwd)" 2>/dev/null || true

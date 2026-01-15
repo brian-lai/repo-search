@@ -493,43 +493,49 @@ case $DB_CHOICE in
             echo ""
             print_section "Docker PostgreSQL Setup"
 
-            # Check port availability
-            PG_PORT=5432
-            while check_port $PG_PORT; do
-                warn "Port $PG_PORT is already in use"
-                echo ""
-                read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
-                PG_PORT=${ALT_PORT:-5433}
-            done
+            # Check if container exists and its state
+            CONTAINER_EXISTS=false
+            CONTAINER_RUNNING=false
 
-            success "Port $PG_PORT is available"
+            if docker ps -a --format '{{.Names}}' | grep -q '^codetect-postgres$'; then
+                CONTAINER_EXISTS=true
+                if docker ps --format '{{.Names}}' | grep -q '^codetect-postgres$'; then
+                    CONTAINER_RUNNING=true
+                fi
+            fi
 
-            # Set environment for docker-compose
-            export POSTGRES_PORT=$PG_PORT
+            if [[ $CONTAINER_EXISTS == true && $CONTAINER_RUNNING == true ]]; then
+                success "PostgreSQL container already running"
 
-            info "Starting PostgreSQL with pgvector in Docker..."
-            info "Container: codetect-postgres"
-            info "Port: $PG_PORT"
-            echo ""
+                # Get the port it's running on
+                PG_PORT=$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' codetect-postgres 2>/dev/null || echo "5432")
+                info "Container: codetect-postgres"
+                info "Port: $PG_PORT"
 
-            if docker-compose up -d postgres; then
-                success "PostgreSQL container started successfully"
+                # Verify it's healthy
+                if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                    success "PostgreSQL is healthy"
+                else
+                    warn "Container running but PostgreSQL not ready"
+                    info "Attempting restart..."
+                    docker-compose restart postgres
 
-                # Wait for PostgreSQL to be ready
-                info "Waiting for PostgreSQL to be ready..."
-                for i in {1..30}; do
-                    if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
-                        success "PostgreSQL is ready"
-                        break
-                    fi
-                    sleep 1
-                done
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+                fi
 
                 # Check if pgvector is enabled
                 if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
                     success "pgvector extension is enabled"
                 else
-                    warn "pgvector extension not enabled automatically"
+                    warn "pgvector extension not enabled"
                     info "Enabling pgvector..."
                     docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
                 fi
@@ -542,18 +548,118 @@ case $DB_CHOICE in
                 POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
                 POSTGRES_INSTALLED=true
 
-                echo ""
-                print_box "$GREEN" \
-                    "PostgreSQL is running in Docker" \
-                    "" \
-                    "Start:   docker-compose up -d postgres" \
-                    "Stop:    docker-compose stop postgres" \
-                    "Logs:    docker-compose logs -f postgres" \
-                    "Remove:  docker-compose down -v"
+            elif [[ $CONTAINER_EXISTS == true && $CONTAINER_RUNNING == false ]]; then
+                warn "PostgreSQL container exists but is stopped"
+
+                # Get the port it was configured with
+                PG_PORT=$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' codetect-postgres 2>/dev/null || echo "5432")
+                info "Starting existing container on port $PG_PORT..."
+
+                # Set environment for docker-compose
+                export POSTGRES_PORT=$PG_PORT
+
+                if docker-compose start postgres; then
+                    success "PostgreSQL container started successfully"
+
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+
+                    # Verify pgvector
+                    if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                        success "pgvector extension is enabled"
+                    else
+                        warn "pgvector extension not enabled"
+                        info "Enabling pgvector..."
+                        docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
+                    fi
+
+                    # Set connection details
+                    PG_HOST="localhost"
+                    PG_USER="codetect"
+                    PG_PASSWORD="codetect"
+                    PG_DBNAME="codetect"
+                    POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
+                    POSTGRES_INSTALLED=true
+                else
+                    error "Failed to start PostgreSQL container"
+                    warn "Falling back to SQLite"
+                    DB_TYPE="sqlite"
+                fi
+
             else
-                error "Failed to start PostgreSQL container"
-                warn "Falling back to SQLite"
-                DB_TYPE="sqlite"
+                # Container doesn't exist - create it
+                echo ""
+                info "Creating new PostgreSQL container..."
+
+                # Check port availability
+                PG_PORT=5432
+                while check_port $PG_PORT; do
+                    warn "Port $PG_PORT is already in use"
+                    echo ""
+                    read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
+                    PG_PORT=${ALT_PORT:-5433}
+                done
+
+                success "Port $PG_PORT is available"
+
+                # Set environment for docker-compose
+                export POSTGRES_PORT=$PG_PORT
+
+                info "Starting PostgreSQL with pgvector in Docker..."
+                info "Container: codetect-postgres"
+                info "Port: $PG_PORT"
+                echo ""
+
+                if docker-compose up -d postgres; then
+                    success "PostgreSQL container started successfully"
+
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+
+                    # Check if pgvector is enabled
+                    if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                        success "pgvector extension is enabled"
+                    else
+                        warn "pgvector extension not enabled automatically"
+                        info "Enabling pgvector..."
+                        docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
+                    fi
+
+                    # Set connection details
+                    PG_HOST="localhost"
+                    PG_USER="codetect"
+                    PG_PASSWORD="codetect"
+                    PG_DBNAME="codetect"
+                    POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
+                    POSTGRES_INSTALLED=true
+
+                    echo ""
+                    print_box "$GREEN" \
+                        "PostgreSQL is running in Docker" \
+                        "" \
+                        "Start:   docker-compose up -d postgres" \
+                        "Stop:    docker-compose stop postgres" \
+                        "Logs:    docker-compose logs -f postgres" \
+                        "Remove:  docker-compose down -v"
+                else
+                    error "Failed to start PostgreSQL container"
+                    warn "Falling back to SQLite"
+                    DB_TYPE="sqlite"
+                fi
             fi
 
         elif [[ $INSTALL_METHOD == "2" || ($INSTALL_METHOD == "1" && $DOCKER_AVAILABLE == false) ]]; then
@@ -778,12 +884,17 @@ case $DB_CHOICE in
 
                 # Enable pgvector extension if available
                 if [[ $HAS_PGVECTOR == true ]]; then
-                    info "Enabling pgvector extension..."
-                    if psql "$POSTGRES_DSN" -c "CREATE EXTENSION IF NOT EXISTS vector" &>/dev/null; then
-                        success "pgvector extension enabled"
+                    # Check if extension already enabled
+                    if psql "$POSTGRES_DSN" -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+                        success "pgvector extension already enabled"
                     else
-                        warn "Could not enable pgvector extension"
-                        info "You may need to enable it manually with: CREATE EXTENSION vector;"
+                        info "Enabling pgvector extension..."
+                        if psql "$POSTGRES_DSN" -c "CREATE EXTENSION IF NOT EXISTS vector" &>/dev/null; then
+                            success "pgvector extension enabled"
+                        else
+                            warn "Could not enable pgvector extension"
+                            info "You may need to enable it manually with: CREATE EXTENSION vector;"
+                        fi
                     fi
                 fi
             else
@@ -892,6 +1003,75 @@ fi
 #
 step 3 3 "Generating configuration..."
 
+# Helper function to load existing config
+load_existing_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return 1
+    fi
+
+    if source "$CONFIG_FILE" 2>/dev/null; then
+        return 0
+    else
+        warn "Existing config file appears corrupted"
+        return 1
+    fi
+}
+
+# Check if config exists and load it
+BACKUP_FILE=""
+if [[ -f "$CONFIG_FILE" ]]; then
+    info "Configuration file already exists"
+
+    if load_existing_config; then
+        info "Preserving existing configuration values..."
+
+        # Use existing values if set, otherwise use newly selected values
+        # This allows script to update with new selections while preserving user customizations
+        PREVIOUS_DB_TYPE="${CODETECT_DB_TYPE:-}"
+        DB_TYPE="${CODETECT_DB_TYPE:-$DB_TYPE}"
+        POSTGRES_DSN="${CODETECT_DB_DSN:-$POSTGRES_DSN}"
+        EMBEDDING_PROVIDER="${CODETECT_EMBEDDING_PROVIDER:-$EMBEDDING_PROVIDER}"
+        OLLAMA_URL="${CODETECT_OLLAMA_URL:-$OLLAMA_URL}"
+        EMBEDDING_MODEL="${CODETECT_EMBEDDING_MODEL:-$EMBEDDING_MODEL}"
+        LITELLM_URL="${CODETECT_LITELLM_URL:-$LITELLM_URL}"
+        LITELLM_API_KEY="${CODETECT_LITELLM_API_KEY:-$LITELLM_API_KEY}"
+
+        # Detect database backend change
+        if [[ -n "$PREVIOUS_DB_TYPE" && "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]]; then
+            echo ""
+            warn "Database backend change detected!"
+            info "Previous: $PREVIOUS_DB_TYPE"
+            info "New:      $DB_TYPE"
+            echo ""
+            warn "Changing database backends requires migration."
+            info "Existing indexes in $PREVIOUS_DB_TYPE will not be accessible."
+            echo ""
+            read -p "$(prompt "Continue with database change? [y/N]")" CONFIRM_DB_CHANGE
+            CONFIRM_DB_CHANGE=${CONFIRM_DB_CHANGE:-N}
+
+            if [[ ! $CONFIRM_DB_CHANGE =~ ^[Yy] ]]; then
+                error "Database change cancelled"
+                info "Re-run installer and select '$PREVIOUS_DB_TYPE' to keep existing setup"
+                exit 1
+            fi
+
+            info "To migrate data later, use: make migrate-to-postgres"
+            echo ""
+        fi
+
+        # Create backup before regenerating
+        BACKUP_FILE="$CONFIG_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+        cp "$CONFIG_FILE" "$BACKUP_FILE"
+        info "Backed up old config to $BACKUP_FILE"
+    else
+        # Corrupted config, back it up and create fresh
+        BACKUP_FILE="$CONFIG_FILE.corrupted.$(date +%Y%m%d-%H%M%S)"
+        mv "$CONFIG_FILE" "$BACKUP_FILE"
+        info "Backed up corrupted config to $BACKUP_FILE"
+        info "Creating fresh configuration..."
+    fi
+fi
+
 cat > "$CONFIG_FILE" << EOF
 # codetect configuration
 # Auto-generated by installer on $(date)
@@ -931,7 +1111,11 @@ export CODETECT_EMBEDDING_MODEL="$EMBEDDING_MODEL"
 EOF
 fi
 
-success "Configuration saved to $CONFIG_FILE"
+if [[ -n "$BACKUP_FILE" ]]; then
+    success "Configuration updated (previous backed up)"
+else
+    success "Configuration saved to $CONFIG_FILE"
+fi
 
 # Add config sourcing to shell profile
 if [[ $INSTALLED_GLOBALLY == true ]]; then
