@@ -26,21 +26,39 @@ type EmbeddingRecord struct {
 // EmbeddingStore manages embedding storage in the database.
 // Supports multiple database types via the dialect abstraction.
 type EmbeddingStore struct {
-	db      db.DB
-	dialect db.Dialect
-	schema  *db.SchemaBuilder
+	db            db.DB
+	dialect       db.Dialect
+	schema        *db.SchemaBuilder
+	vectorDim     int // Vector dimensions (e.g., 768 for nomic-embed-text)
+	useNativeVec  bool // True if using PostgreSQL native vector type
 }
 
-// embeddingColumns defines the columns for the embeddings table.
-var embeddingColumns = []db.ColumnDef{
-	{Name: "id", Type: db.ColTypeAutoIncrement},
-	{Name: "path", Type: db.ColTypeText, Nullable: false},
-	{Name: "start_line", Type: db.ColTypeInteger, Nullable: false},
-	{Name: "end_line", Type: db.ColTypeInteger, Nullable: false},
-	{Name: "content_hash", Type: db.ColTypeText, Nullable: false},
-	{Name: "embedding", Type: db.ColTypeText, Nullable: false},
-	{Name: "model", Type: db.ColTypeText, Nullable: false},
-	{Name: "created_at", Type: db.ColTypeInteger, Nullable: false},
+// embeddingColumnsForDialect returns the column definitions for the embeddings table
+// based on the database dialect. PostgreSQL uses native vector type, SQLite uses TEXT.
+func embeddingColumnsForDialect(dialect db.Dialect, vectorDim int) []db.ColumnDef {
+	embeddingCol := db.ColumnDef{
+		Name:     "embedding",
+		Nullable: false,
+	}
+
+	// Use native vector type for PostgreSQL, TEXT for SQLite
+	if dialect.Name() == "postgres" {
+		embeddingCol.Type = db.ColTypeVector
+		embeddingCol.VectorDimension = vectorDim
+	} else {
+		embeddingCol.Type = db.ColTypeText // JSON storage
+	}
+
+	return []db.ColumnDef{
+		{Name: "id", Type: db.ColTypeAutoIncrement},
+		{Name: "path", Type: db.ColTypeText, Nullable: false},
+		{Name: "start_line", Type: db.ColTypeInteger, Nullable: false},
+		{Name: "end_line", Type: db.ColTypeInteger, Nullable: false},
+		{Name: "content_hash", Type: db.ColTypeText, Nullable: false},
+		embeddingCol,
+		{Name: "model", Type: db.ColTypeText, Nullable: false},
+		{Name: "created_at", Type: db.ColTypeInteger, Nullable: false},
+	}
 }
 
 // NewEmbeddingStore creates a new embedding store using a db.DB adapter.
@@ -50,11 +68,21 @@ func NewEmbeddingStore(database db.DB) (*EmbeddingStore, error) {
 }
 
 // NewEmbeddingStoreWithDialect creates an embedding store with a specific SQL dialect.
+// Uses default vector dimensions (768) for PostgreSQL.
 func NewEmbeddingStoreWithDialect(database db.DB, dialect db.Dialect) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithOptions(database, dialect, 768)
+}
+
+// NewEmbeddingStoreWithOptions creates an embedding store with custom vector dimensions.
+func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim int) (*EmbeddingStore, error) {
+	useNativeVec := dialect.Name() == "postgres"
+
 	store := &EmbeddingStore{
-		db:      database,
-		dialect: dialect,
-		schema:  db.NewSchemaBuilder(database, dialect),
+		db:           database,
+		dialect:      dialect,
+		schema:       db.NewSchemaBuilder(database, dialect),
+		vectorDim:    vectorDim,
+		useNativeVec: useNativeVec,
 	}
 
 	// Initialize schema
@@ -79,11 +107,23 @@ func NewEmbeddingStoreFromConfig(database db.DB, cfg db.Config) (*EmbeddingStore
 
 // initSchema creates the embeddings table if it doesn't exist.
 func (s *EmbeddingStore) initSchema() error {
+	// Run dialect-specific initialization statements (e.g., CREATE EXTENSION for PostgreSQL)
+	for _, stmt := range s.dialect.InitStatements() {
+		if _, err := s.db.Exec(stmt); err != nil {
+			// Log but don't fail if extension already exists
+			// This allows for graceful handling of already-initialized databases
+			_ = err // Suppress unused variable warning
+		}
+	}
+
 	// Use dialect-aware schema for non-SQLite databases
 	// For SQLite, we still use the raw SQL for now to maintain compatibility
 	if s.dialect.Name() != "sqlite" {
+		// Get column definitions based on dialect
+		columns := embeddingColumnsForDialect(s.dialect, s.vectorDim)
+
 		// Create table using dialect
-		sql := s.dialect.CreateTableSQL("embeddings", embeddingColumns)
+		sql := s.dialect.CreateTableSQL("embeddings", columns)
 		if _, err := s.db.Exec(sql); err != nil {
 			return fmt.Errorf("creating embeddings table: %w", err)
 		}
