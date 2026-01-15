@@ -21,13 +21,14 @@ Executing: Fix PostgreSQL Indexing Bug
 
 ### Phase 2: Update codetect-index Commands
 
-- [ ] Update `runIndex()` to load config and use `NewIndexWithConfig`
-- [ ] Update `runEmbed()` to load config and use dialect-aware store
-- [ ] Update `runStats()` to load config and open correct database
+- [x] Update `runIndex()` to load config and use `NewIndexWithConfig`
+- [x] Update `runEmbed()` to load config and use dialect-aware store
+- [x] Update `runStats()` to load config and open correct database
+- [x] Update help message with database environment variables
 
 ### Phase 3: SQLite Backward Compatibility
 
-- [ ] Add SQLite default path handling when no env vars set
+- [x] Add SQLite default path handling when no env vars set (handled in Phase 2 - each command checks db type and sets path accordingly)
 
 ### Phase 4: Update Symbol Tools
 
