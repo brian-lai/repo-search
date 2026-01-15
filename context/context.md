@@ -36,13 +36,21 @@ Executing: Fix PostgreSQL Indexing Bug
 
 ### Phase 5: Testing & Verification
 
-- [ ] Run existing tests to ensure no regressions
-- [ ] Test end-to-end PostgreSQL indexing
-- [ ] Test end-to-end SQLite backward compatibility
+- [x] Run existing tests to ensure no regressions
+- [x] Test end-to-end SQLite backward compatibility
+- [x] Test end-to-end PostgreSQL indexing
 
 ## Progress Notes
 
-_Update this section as you complete items._
+**2026-01-14 Phase 5 Testing:**
+- Found and fixed critical bug: `NewIndexWithConfig` wasn't initializing database schema
+- Added `initSchemaWithAdapter()` to support dialect-aware schema creation
+- Fixed duplicate PRIMARY KEY constraint issue in SQLite/PostgreSQL dialects
+- All unit tests pass
+- SQLite end-to-end: Working correctly
+- PostgreSQL end-to-end: Working correctly (tested with codetect-postgres container on port 5465)
+
+**All phases complete!** The fix enables `codetect-index` to use PostgreSQL when `CODETECT_DB_TYPE=postgres` and `CODETECT_DB_DSN` are set.
 
 ---
 
