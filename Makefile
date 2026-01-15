@@ -9,7 +9,7 @@ PREFIX ?= $(HOME)/.local
 BIN_DIR = $(PREFIX)/bin
 SHARE_DIR = $(PREFIX)/share/repo-search
 
-.PHONY: build mcp index embed doctor clean test install uninstall eval
+.PHONY: build mcp index embed doctor clean test bench bench-all install uninstall eval migrate-to-postgres postgres-up postgres-down postgres-logs postgres-shell
 
 # Build all binaries
 build:
@@ -34,6 +34,45 @@ embed: build
 
 # Run both index and embed
 index-all: index embed
+
+# Migrate SQLite embeddings to PostgreSQL
+migrate-to-postgres: build
+	@if [ -z "$$REPO_SEARCH_DB_DSN" ]; then \
+		echo "Error: REPO_SEARCH_DB_DSN not set"; \
+		echo ""; \
+		echo "Please configure PostgreSQL:"; \
+		echo "  export REPO_SEARCH_DB_TYPE=postgres"; \
+		echo "  export REPO_SEARCH_DB_DSN=\"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable\""; \
+		echo ""; \
+		echo "Start PostgreSQL: make postgres-up"; \
+		exit 1; \
+	fi
+	@echo "Migrating SQLite embeddings to PostgreSQL..."
+	@./$(MIGRATE)
+
+# PostgreSQL helpers
+postgres-up:
+	@echo "Starting PostgreSQL with Docker..."
+	@docker-compose up -d
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 2
+	@docker-compose ps
+	@echo ""
+	@echo "✓ PostgreSQL is running"
+	@echo ""
+	@echo "Set environment variables:"
+	@echo "  export REPO_SEARCH_DB_TYPE=postgres"
+	@echo "  export REPO_SEARCH_DB_DSN=\"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable\""
+
+postgres-down:
+	@echo "Stopping PostgreSQL..."
+	@docker-compose down
+
+postgres-logs:
+	@docker-compose logs -f postgres
+
+postgres-shell:
+	@docker-compose exec postgres psql -U repo_search
 
 # Check dependencies
 doctor:
@@ -92,6 +131,21 @@ stats: build
 # Run tests
 test:
 	go test -v ./...
+
+# Run benchmarks (requires PostgreSQL)
+bench:
+	@echo "Running vector search benchmarks..."
+	@echo "Note: Requires PostgreSQL. Start with: make postgres-up"
+	@echo ""
+	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"} \
+		go test -bench=BenchmarkVectorSearch -benchtime=3s -run=^$$ ./internal/db
+
+bench-all:
+	@echo "Running all benchmarks..."
+	@echo "Note: Requires PostgreSQL. Start with: make postgres-up"
+	@echo ""
+	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"} \
+		go test -bench=. -benchtime=3s -run=^$$ ./internal/db
 
 # Clean build artifacts
 clean:

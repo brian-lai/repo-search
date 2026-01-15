@@ -210,6 +210,7 @@ See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creatin
 
 - [Installation Guide](docs/installation.md) - Detailed setup and configuration
 - [PostgreSQL Setup Guide](docs/postgres-setup.md) - PostgreSQL + pgvector for scalable vector search
+- [Benchmarks](docs/benchmarks.md) - Vector search performance benchmarks and methodology
 - [Evaluation Guide](docs/evaluation.md) - Performance testing and benchmarking
 - [Architecture](docs/architecture.md) - Internal design and data flow
 - [MCP Compatibility](docs/mcp-compatibility.md) - Supported tools and multi-tool roadmap
