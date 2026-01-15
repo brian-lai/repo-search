@@ -141,6 +141,8 @@ Combined keyword + semantic search:
 
 ## Configuration
 
+### Embedding Provider
+
 Configure embedding provider via environment variables:
 
 ```bash
@@ -152,7 +154,41 @@ export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
 export REPO_SEARCH_LITELLM_API_KEY=sk-...
 ```
 
-See [Installation Guide](docs/installation.md#configuration) for all options.
+### Database Backend
+
+repo-search supports two database backends for vector search:
+
+| Backend | Best For | Performance | Setup |
+|---------|----------|-------------|-------|
+| **SQLite** (default) | Small-medium projects (< 10K files) | Fast for small datasets | Zero config |
+| **PostgreSQL + pgvector** | Large projects (> 10K files) | 60x faster at scale | Docker or manual install |
+
+**Quick Start with PostgreSQL:**
+
+```bash
+# Start PostgreSQL with Docker
+docker-compose up -d
+
+# Configure repo-search
+export REPO_SEARCH_DB_TYPE=postgres
+export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"
+
+# Index and embed as usual
+repo-search index
+repo-search embed
+```
+
+**Performance Comparison:**
+
+| Dataset Size | SQLite | PostgreSQL | Speedup |
+|--------------|--------|------------|---------|
+| 100 vectors  | 77 μs  | 603 μs     | 0.13x (slower) |
+| 1,000 vectors | 1.19 ms | 745 μs   | 1.6x faster |
+| 10,000 vectors | 58.1 ms | 963 μs  | **60x faster** |
+
+For large codebases, PostgreSQL + pgvector provides massive performance improvements through HNSW indexing. See [PostgreSQL Setup Guide](docs/postgres-setup.md) for detailed installation and migration instructions.
+
+See [Installation Guide](docs/installation.md#configuration) for all configuration options.
 
 ## Performance Evaluation
 
@@ -173,6 +209,8 @@ See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creatin
 ## Documentation
 
 - [Installation Guide](docs/installation.md) - Detailed setup and configuration
+- [PostgreSQL Setup Guide](docs/postgres-setup.md) - PostgreSQL + pgvector for scalable vector search
+- [Benchmarks](docs/benchmarks.md) - Vector search performance benchmarks and methodology
 - [Evaluation Guide](docs/evaluation.md) - Performance testing and benchmarking
 - [Architecture](docs/architecture.md) - Internal design and data flow
 - [MCP Compatibility](docs/mcp-compatibility.md) - Supported tools and multi-tool roadmap
@@ -201,6 +239,7 @@ See [MCP Compatibility](docs/mcp-compatibility.md) for details and roadmap for n
 - [x] Background indexing daemon
 - [x] Project registry
 - [x] Evaluation framework
+- [x] PostgreSQL + pgvector support for scalable vector search
 - [ ] HTTP API for non-MCP tools
 - [ ] CLI query mode
 
