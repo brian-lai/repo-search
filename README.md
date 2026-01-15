@@ -1,4 +1,4 @@
-# repo-search
+# codetect
 
 A local MCP server providing fast codebase search, file retrieval, symbol navigation, and semantic search for Claude Code.
 
@@ -15,8 +15,8 @@ A local MCP server providing fast codebase search, file retrieval, symbol naviga
 
 ```bash
 # Clone and run interactive installer
-git clone https://github.com/brian-lai/repo-search.git
-cd repo-search
+git clone https://github.com/brian-lai/codetect.git
+cd codetect
 ./install.sh
 ```
 
@@ -31,9 +31,9 @@ Then in any project:
 
 ```bash
 cd /path/to/your/project
-repo-search init      # Creates .mcp.json
-repo-search index     # Index symbols
-repo-search embed     # Optional: enable semantic search
+codetect init      # Creates .mcp.json
+codetect index     # Index symbols
+codetect embed     # Optional: enable semantic search
 claude                # Start Claude Code
 ```
 
@@ -53,40 +53,40 @@ See [Installation Guide](docs/installation.md) for detailed setup instructions.
 ### Main Commands
 
 ```bash
-repo-search init      # Initialize in current directory
-repo-search index     # Index symbols
-repo-search embed     # Generate embeddings
-repo-search doctor    # Check dependencies
-repo-search stats     # Show index statistics
-repo-search migrate   # Discover existing indexes and register them
-repo-search update    # Update to latest version
-repo-search help      # Show all commands
+codetect init      # Initialize in current directory
+codetect index     # Index symbols
+codetect embed     # Generate embeddings
+codetect doctor    # Check dependencies
+codetect stats     # Show index statistics
+codetect migrate   # Discover existing indexes and register them
+codetect update    # Update to latest version
+codetect help      # Show all commands
 ```
 
 ### Daemon Commands
 
 ```bash
-repo-search daemon start    # Start background indexing daemon
-repo-search daemon stop     # Stop daemon
-repo-search daemon status   # Show daemon status
-repo-search daemon logs     # View daemon logs
+codetect daemon start    # Start background indexing daemon
+codetect daemon stop     # Stop daemon
+codetect daemon status   # Show daemon status
+codetect daemon logs     # View daemon logs
 ```
 
 ### Registry Commands
 
 ```bash
-repo-search registry list     # List registered projects
-repo-search registry add      # Add current project to registry
-repo-search registry remove   # Remove a project from registry
-repo-search registry stats    # Show aggregate statistics
+codetect registry list     # List registered projects
+codetect registry add      # Add current project to registry
+codetect registry remove   # Remove a project from registry
+codetect registry stats    # Show aggregate statistics
 ```
 
 ### Evaluation Commands
 
 ```bash
-repo-search-eval run --repo <path>     # Run performance evaluation
-repo-search-eval report                # Show latest results
-repo-search-eval list                  # List available test cases
+codetect-eval run --repo <path>     # Run performance evaluation
+codetect-eval report                # Show latest results
+codetect-eval list                  # List available test cases
 ```
 
 ## MCP Tools
@@ -147,16 +147,16 @@ Configure embedding provider via environment variables:
 
 ```bash
 # Use Ollama (default)
-export REPO_SEARCH_EMBEDDING_PROVIDER=ollama
+export CODETECT_EMBEDDING_PROVIDER=ollama
 
 # Or use LiteLLM/OpenAI
-export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
-export REPO_SEARCH_LITELLM_API_KEY=sk-...
+export CODETECT_EMBEDDING_PROVIDER=litellm
+export CODETECT_LITELLM_API_KEY=sk-...
 ```
 
 ### Database Backend
 
-repo-search supports two database backends for vector search:
+codetect supports two database backends for vector search:
 
 | Backend | Best For | Performance | Setup |
 |---------|----------|-------------|-------|
@@ -169,13 +169,13 @@ repo-search supports two database backends for vector search:
 # Start PostgreSQL with Docker
 docker-compose up -d
 
-# Configure repo-search
-export REPO_SEARCH_DB_TYPE=postgres
-export REPO_SEARCH_DB_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"
+# Configure codetect
+export CODETECT_DB_TYPE=postgres
+export CODETECT_DB_DSN="postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"
 
 # Index and embed as usual
-repo-search index
-repo-search embed
+codetect index
+codetect embed
 ```
 
 **Performance Comparison:**
@@ -192,17 +192,17 @@ See [Installation Guide](docs/installation.md#configuration) for all configurati
 
 ## Performance Evaluation
 
-repo-search includes an evaluation tool to measure the performance improvement of MCP tools vs. standard CLI tools (grep, find, etc.) when working with Claude Code.
+codetect includes an evaluation tool to measure the performance improvement of MCP tools vs. standard CLI tools (grep, find, etc.) when working with Claude Code.
 
 ```bash
 # Run evaluations on any repository
-repo-search-eval run --repo /path/to/project
+codetect-eval run --repo /path/to/project
 
 # View results
-repo-search-eval report
+codetect-eval report
 ```
 
-Eval cases are stored in `.repo_search/evals/cases/` (auto-added to .gitignore) so you can version-control test cases while keeping results local.
+Eval cases are stored in `.codetect/evals/cases/` (auto-added to .gitignore) so you can version-control test cases while keeping results local.
 
 See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creating test cases, understanding metrics, and best practices.
 
@@ -217,7 +217,7 @@ See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creatin
 
 ## Compatibility
 
-repo-search uses [MCP (Model Context Protocol)](https://modelcontextprotocol.io/), an open standard for LLM tool integration.
+codetect uses [MCP (Model Context Protocol)](https://modelcontextprotocol.io/), an open standard for LLM tool integration.
 
 | Tool | Support |
 |------|---------|

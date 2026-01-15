@@ -1,4 +1,4 @@
-// repo-search-daemon is the background indexing daemon for repo-search.
+// codetect-daemon is the background indexing daemon for codetect.
 // It watches registered projects for file changes and triggers re-indexing.
 package main
 
@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"repo-search/internal/daemon"
-	"repo-search/internal/registry"
+	"codetect/internal/daemon"
+	"codetect/internal/registry"
 )
 
 func main() {
@@ -36,9 +36,9 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("repo-search-daemon - Background indexing daemon")
+	fmt.Println("codetect-daemon - Background indexing daemon")
 	fmt.Println()
-	fmt.Println("Usage: repo-search-daemon <command>")
+	fmt.Println("Usage: codetect-daemon <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  start     Start the daemon")

@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"repo-search/internal/config"
-	"repo-search/internal/db"
-	"repo-search/internal/embedding"
-	"repo-search/internal/mcp"
-	"repo-search/internal/search/files"
-	"repo-search/internal/search/hybrid"
+	"codetect/internal/config"
+	"codetect/internal/db"
+	"codetect/internal/embedding"
+	"codetect/internal/mcp"
+	"codetect/internal/search/files"
+	"codetect/internal/search/hybrid"
 )
 
 // RegisterSemanticTools registers the semantic search MCP tools
@@ -188,7 +188,7 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 			// Fallback to SQLite
 			dbConfig.Type = db.DatabaseSQLite
 			cwd, _ := os.Getwd()
-			dbConfig.Path = filepath.Join(cwd, ".repo_search", "symbols.db")
+			dbConfig.Path = filepath.Join(cwd, ".codetect", "symbols.db")
 
 			store, err = openEmbeddingStore(dbConfig)
 			if err != nil {
@@ -215,7 +215,7 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 	case db.DatabasePostgres:
 		// Open PostgreSQL database
 		if dbConfig.DSN == "" {
-			return nil, fmt.Errorf("PostgreSQL DSN not configured - set REPO_SEARCH_DB_DSN")
+			return nil, fmt.Errorf("PostgreSQL DSN not configured - set CODETECT_DB_DSN")
 		}
 
 		cfg := dbConfig.ToDBConfig()
@@ -243,7 +243,7 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 		// Determine database path
 		dbPath := dbConfig.Path
 		if dbPath == "" {
-			dbPath = filepath.Join(cwd, ".repo_search", "symbols.db")
+			dbPath = filepath.Join(cwd, ".codetect", "symbols.db")
 		}
 
 		// For SQLite, check if database exists

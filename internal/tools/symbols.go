@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"repo-search/internal/mcp"
-	"repo-search/internal/search/symbols"
+	"codetect/internal/mcp"
+	"codetect/internal/search/symbols"
 )
 
 // RegisterSymbolTools registers the symbol-related MCP tools
@@ -162,7 +162,7 @@ func openIndex() (*symbols.Index, error) {
 		return nil, fmt.Errorf("getting working directory: %w", err)
 	}
 
-	dbPath := filepath.Join(cwd, ".repo_search", "symbols.db")
+	dbPath := filepath.Join(cwd, ".codetect", "symbols.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("no symbol index found - run 'make index' first")
 	}

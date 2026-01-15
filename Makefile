@@ -1,23 +1,23 @@
-BINARY=dist/repo-search
-INDEXER=dist/repo-search-index
-DAEMON=dist/repo-search-daemon
-EVAL=dist/repo-search-eval
+BINARY=dist/codetect
+INDEXER=dist/codetect-index
+DAEMON=dist/codetect-daemon
+EVAL=dist/codetect-eval
 MIGRATE=dist/migrate-to-postgres
 
 # Installation prefix (default: ~/.local)
 PREFIX ?= $(HOME)/.local
 BIN_DIR = $(PREFIX)/bin
-SHARE_DIR = $(PREFIX)/share/repo-search
+SHARE_DIR = $(PREFIX)/share/codetect
 
 .PHONY: build mcp index embed doctor clean test bench bench-all install uninstall eval migrate-to-postgres postgres-up postgres-down postgres-logs postgres-shell
 
 # Build all binaries
 build:
 	@mkdir -p dist
-	go build -o $(BINARY) ./cmd/repo-search
-	go build -o $(INDEXER) ./cmd/repo-search-index
-	go build -o $(DAEMON) ./cmd/repo-search-daemon
-	go build -o $(EVAL) ./cmd/repo-search-eval
+	go build -o $(BINARY) ./cmd/codetect
+	go build -o $(INDEXER) ./cmd/codetect-index
+	go build -o $(DAEMON) ./cmd/codetect-daemon
+	go build -o $(EVAL) ./cmd/codetect-eval
 	go build -o $(MIGRATE) ./cmd/migrate-to-postgres
 
 # Run MCP server (used by .mcp.json)
@@ -37,12 +37,12 @@ index-all: index embed
 
 # Migrate SQLite embeddings to PostgreSQL
 migrate-to-postgres: build
-	@if [ -z "$$REPO_SEARCH_DB_DSN" ]; then \
-		echo "Error: REPO_SEARCH_DB_DSN not set"; \
+	@if [ -z "$$CODETECT_DB_DSN" ]; then \
+		echo "Error: CODETECT_DB_DSN not set"; \
 		echo ""; \
 		echo "Please configure PostgreSQL:"; \
-		echo "  export REPO_SEARCH_DB_TYPE=postgres"; \
-		echo "  export REPO_SEARCH_DB_DSN=\"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable\""; \
+		echo "  export CODETECT_DB_TYPE=postgres"; \
+		echo "  export CODETECT_DB_DSN=\"postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable\""; \
 		echo ""; \
 		echo "Start PostgreSQL: make postgres-up"; \
 		exit 1; \
@@ -61,8 +61,8 @@ postgres-up:
 	@echo "✓ PostgreSQL is running"
 	@echo ""
 	@echo "Set environment variables:"
-	@echo "  export REPO_SEARCH_DB_TYPE=postgres"
-	@echo "  export REPO_SEARCH_DB_DSN=\"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable\""
+	@echo "  export CODETECT_DB_TYPE=postgres"
+	@echo "  export CODETECT_DB_DSN=\"postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable\""
 
 postgres-down:
 	@echo "Stopping PostgreSQL..."
@@ -72,7 +72,7 @@ postgres-logs:
 	@docker-compose logs -f postgres
 
 postgres-shell:
-	@docker-compose exec postgres psql -U repo_search
+	@docker-compose exec postgres psql -U codetect
 
 # Check dependencies
 doctor:
@@ -93,12 +93,12 @@ doctor:
 	fi
 	@echo ""
 	@echo "=== Embedding Provider ==="
-	@PROVIDER=$${REPO_SEARCH_EMBEDDING_PROVIDER:-ollama}; \
+	@PROVIDER=$${CODETECT_EMBEDDING_PROVIDER:-ollama}; \
 	echo "  Provider: $$PROVIDER"; \
 	if [ "$$PROVIDER" = "off" ]; then \
 		echo "  Status: disabled"; \
 	elif [ "$$PROVIDER" = "litellm" ]; then \
-		LITELLM_URL=$${REPO_SEARCH_LITELLM_URL:-http://localhost:4000}; \
+		LITELLM_URL=$${CODETECT_LITELLM_URL:-http://localhost:4000}; \
 		echo "  URL: $$LITELLM_URL"; \
 		if curl -s "$$LITELLM_URL/health" >/dev/null 2>&1; then \
 			echo "✓ litellm: available"; \
@@ -108,8 +108,8 @@ doctor:
 	else \
 		if command -v ollama >/dev/null 2>&1; then \
 			echo "✓ ollama: $$(ollama --version 2>/dev/null || echo 'installed')"; \
-			OLLAMA_URL=$${REPO_SEARCH_OLLAMA_URL:-http://localhost:11434}; \
-			MODEL=$${REPO_SEARCH_EMBEDDING_MODEL:-nomic-embed-text}; \
+			OLLAMA_URL=$${CODETECT_OLLAMA_URL:-http://localhost:11434}; \
+			MODEL=$${CODETECT_EMBEDDING_MODEL:-nomic-embed-text}; \
 			if curl -s "$$OLLAMA_URL/api/tags" 2>/dev/null | grep -q "$$MODEL"; then \
 				echo "✓ $$MODEL: model available"; \
 			else \
@@ -137,31 +137,31 @@ bench:
 	@echo "Running vector search benchmarks..."
 	@echo "Note: Requires PostgreSQL. Start with: make postgres-up"
 	@echo ""
-	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"} \
+	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"} \
 		go test -bench=BenchmarkVectorSearch -benchtime=3s -run=^$$ ./internal/db
 
 bench-all:
 	@echo "Running all benchmarks..."
 	@echo "Note: Requires PostgreSQL. Start with: make postgres-up"
 	@echo ""
-	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"} \
+	@POSTGRES_TEST_DSN=$${POSTGRES_TEST_DSN:-"postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"} \
 		go test -bench=. -benchtime=3s -run=^$$ ./internal/db
 
 # Clean build artifacts
 clean:
-	rm -rf dist .repo_search
+	rm -rf dist .codetect
 
 # Install globally
 install: build
 	@echo "Installing to $(PREFIX)..."
 	@mkdir -p $(BIN_DIR) $(SHARE_DIR)/templates
-	@cp $(BINARY) $(BIN_DIR)/repo-search-mcp
-	@cp $(INDEXER) $(BIN_DIR)/repo-search-index
-	@cp $(DAEMON) $(BIN_DIR)/repo-search-daemon
-	@cp $(EVAL) $(BIN_DIR)/repo-search-eval
+	@cp $(BINARY) $(BIN_DIR)/codetect-mcp
+	@cp $(INDEXER) $(BIN_DIR)/codetect-index
+	@cp $(DAEMON) $(BIN_DIR)/codetect-daemon
+	@cp $(EVAL) $(BIN_DIR)/codetect-eval
 	@cp $(MIGRATE) $(BIN_DIR)/migrate-to-postgres
-	@cp scripts/repo-search-wrapper.sh $(BIN_DIR)/repo-search
-	@chmod +x $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon $(BIN_DIR)/repo-search-eval $(BIN_DIR)/migrate-to-postgres
+	@cp scripts/codetect-wrapper.sh $(BIN_DIR)/codetect
+	@chmod +x $(BIN_DIR)/codetect $(BIN_DIR)/codetect-mcp $(BIN_DIR)/codetect-index $(BIN_DIR)/codetect-daemon $(BIN_DIR)/codetect-eval $(BIN_DIR)/migrate-to-postgres
 	@cp templates/mcp.json $(SHARE_DIR)/templates/
 	@echo ""
 	@echo "✓ Installed to $(PREFIX)"
@@ -171,19 +171,19 @@ install: build
 	@echo ""
 	@echo "Quick start:"
 	@echo "  cd /path/to/your/project"
-	@echo "  repo-search init"
-	@echo "  repo-search index"
-	@echo "  repo-search daemon start"
+	@echo "  codetect init"
+	@echo "  codetect index"
+	@echo "  codetect daemon start"
 	@echo ""
 	@echo "Evaluation:"
-	@echo "  repo-search-eval run --verbose    # Run evaluation tests"
-	@echo "  repo-search-eval list             # List test cases"
-	@echo "  repo-search-eval report           # Show latest report"
+	@echo "  codetect-eval run --verbose    # Run evaluation tests"
+	@echo "  codetect-eval list             # List test cases"
+	@echo "  codetect-eval report           # Show latest report"
 
 # Uninstall
 uninstall:
 	@echo "Uninstalling from $(PREFIX)..."
-	@rm -f $(BIN_DIR)/repo-search $(BIN_DIR)/repo-search-mcp $(BIN_DIR)/repo-search-index $(BIN_DIR)/repo-search-daemon $(BIN_DIR)/repo-search-eval $(BIN_DIR)/migrate-to-postgres
+	@rm -f $(BIN_DIR)/codetect $(BIN_DIR)/codetect-mcp $(BIN_DIR)/codetect-index $(BIN_DIR)/codetect-daemon $(BIN_DIR)/codetect-eval $(BIN_DIR)/migrate-to-postgres
 	@rm -rf $(SHARE_DIR)
 	@echo "✓ Uninstalled"
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // DatabaseConfig holds database configuration for the MCP server.
@@ -25,10 +25,10 @@ type DatabaseConfig struct {
 
 // LoadDatabaseConfigFromEnv loads database configuration from environment variables.
 // Supports the following variables:
-//   - REPO_SEARCH_DB_TYPE: Database type ("sqlite" or "postgres")
-//   - REPO_SEARCH_DB_DSN: Connection string for PostgreSQL
-//   - REPO_SEARCH_DB_PATH: Database file path for SQLite
-//   - REPO_SEARCH_VECTOR_DIMENSIONS: Vector dimensions (default: 768)
+//   - CODETECT_DB_TYPE: Database type ("sqlite" or "postgres")
+//   - CODETECT_DB_DSN: Connection string for PostgreSQL
+//   - CODETECT_DB_PATH: Database file path for SQLite
+//   - CODETECT_VECTOR_DIMENSIONS: Vector dimensions (default: 768)
 //
 // If no environment variables are set, defaults to SQLite with standard path.
 func LoadDatabaseConfigFromEnv() DatabaseConfig {
@@ -38,7 +38,7 @@ func LoadDatabaseConfigFromEnv() DatabaseConfig {
 	}
 
 	// Check for explicit database type
-	if dbType := os.Getenv("REPO_SEARCH_DB_TYPE"); dbType != "" {
+	if dbType := os.Getenv("CODETECT_DB_TYPE"); dbType != "" {
 		switch strings.ToLower(dbType) {
 		case "postgres", "postgresql":
 			cfg.Type = db.DatabasePostgres
@@ -51,7 +51,7 @@ func LoadDatabaseConfigFromEnv() DatabaseConfig {
 	}
 
 	// Load DSN (for PostgreSQL)
-	if dsn := os.Getenv("REPO_SEARCH_DB_DSN"); dsn != "" {
+	if dsn := os.Getenv("CODETECT_DB_DSN"); dsn != "" {
 		cfg.DSN = dsn
 
 		// Auto-detect database type from DSN if not explicitly set
@@ -61,12 +61,12 @@ func LoadDatabaseConfigFromEnv() DatabaseConfig {
 	}
 
 	// Load path (for SQLite)
-	if path := os.Getenv("REPO_SEARCH_DB_PATH"); path != "" {
+	if path := os.Getenv("CODETECT_DB_PATH"); path != "" {
 		cfg.Path = path
 	}
 
 	// Load vector dimensions
-	if dims := os.Getenv("REPO_SEARCH_VECTOR_DIMENSIONS"); dims != "" {
+	if dims := os.Getenv("CODETECT_VECTOR_DIMENSIONS"); dims != "" {
 		var d int
 		if _, err := fmt.Sscanf(dims, "%d", &d); err == nil && d > 0 {
 			cfg.VectorDimensions = d
@@ -95,7 +95,7 @@ func (c DatabaseConfig) ToDBConfig() db.Config {
 		path := c.Path
 		if path == "" {
 			// Default path if not specified
-			path = ".repo_search/symbols.db"
+			path = ".codetect/symbols.db"
 		}
 		return db.DefaultConfig(path)
 	}

@@ -7,13 +7,13 @@ import (
 	"os"
 	"time"
 
-	"repo-search/internal/config"
-	"repo-search/internal/db"
-	"repo-search/internal/embedding"
+	"codetect/internal/config"
+	"codetect/internal/db"
+	"codetect/internal/embedding"
 )
 
 const (
-	defaultSQLitePath = ".repo_search/symbols.db"
+	defaultSQLitePath = ".codetect/symbols.db"
 )
 
 func main() {
@@ -30,8 +30,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Migrate embeddings from SQLite to PostgreSQL.\n\n")
 		fmt.Fprintf(os.Stderr, "Environment variables:\n")
-		fmt.Fprintf(os.Stderr, "  REPO_SEARCH_DB_TYPE=postgres\n")
-		fmt.Fprintf(os.Stderr, "  REPO_SEARCH_DB_DSN=postgres://user:pass@localhost:5432/dbname\n\n")
+		fmt.Fprintf(os.Stderr, "  CODETECT_DB_TYPE=postgres\n")
+		fmt.Fprintf(os.Stderr, "  CODETECT_DB_DSN=postgres://user:pass@localhost:5432/dbname\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 	}
@@ -43,20 +43,20 @@ func main() {
 	if pgConfig.Type != db.DatabasePostgres {
 		fmt.Fprintf(os.Stderr, "Error: PostgreSQL not configured\n\n")
 		fmt.Fprintf(os.Stderr, "Please set environment variables:\n")
-		fmt.Fprintf(os.Stderr, "  export REPO_SEARCH_DB_TYPE=postgres\n")
-		fmt.Fprintf(os.Stderr, "  export REPO_SEARCH_DB_DSN=postgres://user:pass@localhost:5432/dbname\n\n")
+		fmt.Fprintf(os.Stderr, "  export CODETECT_DB_TYPE=postgres\n")
+		fmt.Fprintf(os.Stderr, "  export CODETECT_DB_DSN=postgres://user:pass@localhost:5432/dbname\n\n")
 		os.Exit(1)
 	}
 
 	if pgConfig.DSN == "" {
-		fmt.Fprintf(os.Stderr, "Error: REPO_SEARCH_DB_DSN not set\n")
+		fmt.Fprintf(os.Stderr, "Error: CODETECT_DB_DSN not set\n")
 		os.Exit(1)
 	}
 
 	// Check if SQLite database exists
 	if _, err := os.Stat(*sqlitePath); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "Error: SQLite database not found: %s\n", *sqlitePath)
-		fmt.Fprintf(os.Stderr, "Have you run 'repo-search embed' yet?\n")
+		fmt.Fprintf(os.Stderr, "Have you run 'codetect embed' yet?\n")
 		os.Exit(1)
 	}
 
@@ -127,7 +127,7 @@ func main() {
 
 	if sourceCount == 0 {
 		fmt.Println("No embeddings found in SQLite database")
-		fmt.Println("Run 'repo-search embed' to generate embeddings first")
+		fmt.Println("Run 'codetect embed' to generate embeddings first")
 		os.Exit(0)
 	}
 
@@ -217,6 +217,6 @@ func main() {
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  1. Keep PostgreSQL environment variables set")
-	fmt.Println("  2. Test semantic search: repo-search (in MCP mode)")
+	fmt.Println("  2. Test semantic search: codetect (in MCP mode)")
 	fmt.Println("  3. Optional: Backup SQLite database and remove it")
 }

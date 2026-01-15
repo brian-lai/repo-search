@@ -1,25 +1,25 @@
 # Performance Evaluation Guide
 
-repo-search includes a comprehensive evaluation tool to measure the performance improvement of MCP tools vs. standard CLI tools (grep, find, etc.) when working with Claude Code.
+codetect includes a comprehensive evaluation tool to measure the performance improvement of MCP tools vs. standard CLI tools (grep, find, etc.) when working with Claude Code.
 
 ## Overview
 
-The `repo-search-eval` tool runs test cases against your codebase twice: once with MCP tools enabled, and once with only standard CLI tools. This provides quantitative data on the benefits of using repo-search.
+The `codetect-eval` tool runs test cases against your codebase twice: once with MCP tools enabled, and once with only standard CLI tools. This provides quantitative data on the benefits of using codetect.
 
 ## Quick Start
 
 ```bash
 # Run all test cases on a target repository
-repo-search-eval run --repo /path/to/project
+codetect-eval run --repo /path/to/project
 
 # Run only specific categories
-repo-search-eval run --repo /path/to/project --category search,navigate
+codetect-eval run --repo /path/to/project --category search,navigate
 
 # View the most recent results
-repo-search-eval report
+codetect-eval report
 
 # List available test cases
-repo-search-eval list --repo /path/to/project
+codetect-eval list --repo /path/to/project
 ```
 
 ## Commands
@@ -29,7 +29,7 @@ repo-search-eval list --repo /path/to/project
 Run evaluation test cases against a repository.
 
 ```bash
-repo-search-eval run [options]
+codetect-eval run [options]
 ```
 
 **Options:**
@@ -44,13 +44,13 @@ repo-search-eval run [options]
 
 ```bash
 # Evaluate current repository with all test cases
-repo-search-eval run
+codetect-eval run
 
 # Evaluate specific repository with only search tests
-repo-search-eval run --repo /path/to/project --category search
+codetect-eval run --repo /path/to/project --category search
 
 # Run with custom timeout and verbose output
-repo-search-eval run --repo /path/to/project --timeout 10m --verbose
+codetect-eval run --repo /path/to/project --timeout 10m --verbose
 ```
 
 ### report
@@ -58,7 +58,7 @@ repo-search-eval run --repo /path/to/project --timeout 10m --verbose
 Display a saved evaluation report.
 
 ```bash
-repo-search-eval report [options]
+codetect-eval report [options]
 ```
 
 **Options:**
@@ -68,10 +68,10 @@ repo-search-eval report [options]
 
 ```bash
 # Show the most recent report
-repo-search-eval report
+codetect-eval report
 
 # Show a specific report
-repo-search-eval report --results .repo_search/evals/results/2024-01-10-120000-results.json
+codetect-eval report --results .codetect/evals/results/2024-01-10-120000-results.json
 ```
 
 ### list
@@ -79,7 +79,7 @@ repo-search-eval report --results .repo_search/evals/results/2024-01-10-120000-r
 List available test cases.
 
 ```bash
-repo-search-eval list [options]
+codetect-eval list [options]
 ```
 
 **Options:**
@@ -91,13 +91,13 @@ repo-search-eval list [options]
 
 ```bash
 # List all test cases in current directory
-repo-search-eval list
+codetect-eval list
 
 # List test cases for a specific repository
-repo-search-eval list --repo /path/to/project
+codetect-eval list --repo /path/to/project
 
 # List only navigation test cases
-repo-search-eval list --category navigate
+codetect-eval list --category navigate
 ```
 
 ## Creating Eval Cases for Your Repository
@@ -106,11 +106,11 @@ When you run evals on a repository without test cases, you'll see a helpful erro
 
 ### Repository-Specific Storage
 
-Eval data is stored in a `.repo_search/` directory within the target repository:
+Eval data is stored in a `.codetect/` directory within the target repository:
 
 ```
 your-project/
-├── .repo_search/           # Auto-added to .gitignore
+├── .codetect/           # Auto-added to .gitignore
 │   └── evals/
 │       ├── cases/          # Test case JSONL files
 │       │   ├── search.jsonl
@@ -130,10 +130,10 @@ This approach:
 Create the directory structure and add JSONL files:
 
 ```bash
-mkdir -p .repo_search/evals/cases
+mkdir -p .codetect/evals/cases
 ```
 
-Create test case files (e.g., `.repo_search/evals/cases/search.jsonl`):
+Create test case files (e.g., `.codetect/evals/cases/search.jsonl`):
 
 ```jsonl
 {"id":"search-001","category":"search","description":"Find error handling","prompt":"Find all error handling code in this repository","ground_truth":{"files":["internal/errors.go","pkg/handler.go"]},"difficulty":"easy"}
@@ -145,9 +145,9 @@ Create test case files (e.g., `.repo_search/evals/cases/search.jsonl`):
 Start a Claude Code session in the target repository and paste this prompt:
 
 ```
-Create eval test cases for the repo-search MCP tool in .repo_search/evals/cases/
+Create eval test cases for the codetect MCP tool in .codetect/evals/cases/
 
-These test cases will be used by repo-search-eval to measure MCP search performance
+These test cases will be used by codetect-eval to measure MCP search performance
 against this repository (without pre-indexing). Create JSONL files organized by
 category:
 - search.jsonl: keyword/regex searches, file pattern matching
@@ -333,7 +333,7 @@ Improvements:
 
 ### Running Evaluations
 
-1. **Index first** - Run `repo-search index` before evaluating
+1. **Index first** - Run `codetect index` before evaluating
 2. **Use consistent versions** - Don't upgrade mid-evaluation
 3. **Run multiple times** - Results can vary; average over multiple runs
 4. **Document context** - Note repo size, language, domain in reports
@@ -343,8 +343,8 @@ Improvements:
 1. **Update with code changes** - Keep ground truth in sync
 2. **Add new tests** - When you encounter interesting queries
 3. **Remove stale tests** - Delete tests for removed features
-4. **Version control cases** - Commit `.repo_search/evals/cases/` to git
-5. **Ignore results** - Keep `.repo_search/` in .gitignore (results are auto-added)
+4. **Version control cases** - Commit `.codetect/evals/cases/` to git
+5. **Ignore results** - Keep `.codetect/` in .gitignore (results are auto-added)
 
 ## Troubleshooting
 
@@ -353,7 +353,7 @@ Improvements:
 **Error:**
 ```
 ERROR: No test cases found!
-The eval runner could not find any test cases in: /path/to/repo/.repo_search/evals/cases
+The eval runner could not find any test cases in: /path/to/repo/.codetect/evals/cases
 ```
 
 **Solution:** Create test cases using the manual or AI-assisted approach above.
@@ -363,14 +363,14 @@ The eval runner could not find any test cases in: /path/to/repo/.repo_search/eva
 If test cases are timing out, increase the timeout:
 
 ```bash
-repo-search-eval run --repo /path/to/project --timeout 10m
+codetect-eval run --repo /path/to/project --timeout 10m
 ```
 
 ### Low accuracy scores
 
 If accuracy is low across the board:
 1. Check that ground truth is correct
-2. Verify the repo is indexed: `repo-search stats`
+2. Verify the repo is indexed: `codetect stats`
 3. Try simpler prompts to isolate the issue
 
 ### High token usage with MCP
@@ -378,7 +378,7 @@ If accuracy is low across the board:
 If MCP tools aren't reducing tokens:
 1. Check that MCP is actually being used (look for tool calls in verbose output)
 2. Verify `.mcp.json` is configured correctly
-3. Ensure repo-search is running: `ps aux | grep repo-search`
+3. Ensure codetect is running: `ps aux | grep codetect`
 
 ## Advanced Usage
 
@@ -387,7 +387,7 @@ If MCP tools aren't reducing tokens:
 Organize test cases by feature or module:
 
 ```
-.repo_search/evals/cases/
+.codetect/evals/cases/
 ├── auth/
 │   ├── search.jsonl
 │   └── navigate.jsonl
@@ -406,27 +406,27 @@ Add eval runs to your CI pipeline:
 
 ```bash
 # .github/workflows/eval.yml
-- name: Run repo-search evals
+- name: Run codetect evals
   run: |
-    repo-search index
-    repo-search-eval run --repo . --output ci-results/
+    codetect index
+    codetect-eval run --repo . --output ci-results/
 ```
 
 ### Comparing Versions
 
-Run evals before and after upgrading repo-search:
+Run evals before and after upgrading codetect:
 
 ```bash
 # Before upgrade
-repo-search-eval run --repo .
-cp .repo_search/evals/results/latest.json before.json
+codetect-eval run --repo .
+cp .codetect/evals/results/latest.json before.json
 
 # Upgrade
-repo-search update
+codetect update
 
 # After upgrade
-repo-search-eval run --repo .
-cp .repo_search/evals/results/latest.json after.json
+codetect-eval run --repo .
+cp .codetect/evals/results/latest.json after.json
 
 # Compare (manually or with custom script)
 ```
@@ -459,6 +459,6 @@ A: Update the JSONL file with the correct ground truth and re-run. Results are o
 
 ## Related Documentation
 
-- [Installation Guide](installation.md) - Setup repo-search before running evals
+- [Installation Guide](installation.md) - Setup codetect before running evals
 - [Architecture](architecture.md) - Understanding how MCP tools work
 - [MCP Compatibility](mcp-compatibility.md) - Supported tools and configurations

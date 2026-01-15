@@ -1,6 +1,6 @@
 # Performance Benchmarks
 
-This document explains repo-search's performance benchmarking methodology, how to run benchmarks, and how to interpret results.
+This document explains codetect's performance benchmarking methodology, how to run benchmarks, and how to interpret results.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This document explains repo-search's performance benchmarking methodology, how t
 
 ## Overview
 
-repo-search includes comprehensive benchmarks comparing two vector search backends:
+codetect includes comprehensive benchmarks comparing two vector search backends:
 
 | Backend | Algorithm | Complexity | Best For |
 |---------|-----------|------------|----------|
@@ -72,7 +72,7 @@ docker-compose ps
 
 ```bash
 # Set PostgreSQL connection for pgvector benchmarks
-export POSTGRES_TEST_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"
+export POSTGRES_TEST_DSN="postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"
 
 # Run vector search benchmarks (3 seconds per benchmark)
 go test -bench=BenchmarkVectorSearch -benchtime=3s -run=^$ ./internal/db
@@ -429,7 +429,7 @@ docker-compose ps  # Verify running
 ### Step 2: Set Environment
 
 ```bash
-export POSTGRES_TEST_DSN="postgres://repo_search:repo_search@localhost:5432/repo_search?sslmode=disable"
+export POSTGRES_TEST_DSN="postgres://codetect:codetect@localhost:5432/codetect?sslmode=disable"
 ```
 
 ### Step 3: Run Benchmarks
@@ -457,7 +457,7 @@ go test -v -run=TestSearchConsistency ./internal/db
 ```
 goos: darwin
 goarch: arm64
-pkg: repo-search/internal/db
+pkg: codetect/internal/db
 cpu: Apple M3 Pro
 BenchmarkVectorSearch/BruteForce_100-11         	   47170	     76562 ns/op
 BenchmarkVectorSearch/PgVector_100-11           	    6318	    603127 ns/op
@@ -466,7 +466,7 @@ BenchmarkVectorSearch/PgVector_1000-11          	    4364	    745252 ns/op
 BenchmarkVectorSearch/BruteForce_10000-11       	      62	  58094880 ns/op
 BenchmarkVectorSearch/PgVector_10000-11         	    3631	    963429 ns/op
 PASS
-ok  	repo-search/internal/db	67.772s
+ok  	codetect/internal/db	67.772s
 ```
 
 ## Performance Tuning
@@ -540,7 +540,7 @@ SET hnsw.ef_search = 100;  -- Higher = better accuracy, slower search
 
 - **Benchmarks failing?** Check PostgreSQL is running: `docker-compose ps`
 - **Different results?** Hardware varies - relative speedup matters more than absolute numbers
-- **Need help?** Open an issue: https://github.com/brian-lai/repo-search/issues
+- **Need help?** Open an issue: https://github.com/brian-lai/codetect/issues
 
 ---
 

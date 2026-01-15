@@ -3,23 +3,23 @@ version: '3.8'
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: repo-search-postgres
+    container_name: codetect-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: repo_search
-      POSTGRES_PASSWORD: repo_search
-      POSTGRES_DB: repo_search
+      POSTGRES_USER: codetect
+      POSTGRES_PASSWORD: codetect
+      POSTGRES_DB: codetect
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - repo-search-pgdata:/var/lib/postgresql/data
+      - codetect-pgdata:/var/lib/postgresql/data
       - ./init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U repo_search"]
+      test: ["CMD-SHELL", "pg_isready -U codetect"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
-  repo-search-pgdata:
-    name: repo-search-pgdata
+  codetect-pgdata:
+    name: codetect-pgdata

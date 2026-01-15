@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 func TestMigrateDatabase(t *testing.T) {

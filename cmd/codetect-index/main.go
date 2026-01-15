@@ -10,8 +10,8 @@ import (
 
 	ignore "github.com/sabhiram/go-gitignore"
 
-	"repo-search/internal/embedding"
-	"repo-search/internal/search/symbols"
+	"codetect/internal/embedding"
+	"codetect/internal/search/symbols"
 )
 
 const version = "0.3.0"
@@ -33,7 +33,7 @@ func main() {
 		runStats(os.Args[2:])
 
 	case "version":
-		fmt.Printf("repo-search-index v%s\n", version)
+		fmt.Printf("codetect-index v%s\n", version)
 
 	case "help", "-h", "--help":
 		printUsage()
@@ -64,22 +64,22 @@ func runIndex(args []string) {
 
 	// Check if ctags is available
 	if !symbols.CtagsAvailable() {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] warning: universal-ctags not found")
-		fmt.Fprintln(os.Stderr, "[repo-search-index] symbol indexing will be skipped")
-		fmt.Fprintln(os.Stderr, "[repo-search-index] install with: brew install universal-ctags (macOS)")
+		fmt.Fprintln(os.Stderr, "[codetect-index] warning: universal-ctags not found")
+		fmt.Fprintln(os.Stderr, "[codetect-index] symbol indexing will be skipped")
+		fmt.Fprintln(os.Stderr, "[codetect-index] install with: brew install universal-ctags (macOS)")
 		os.Exit(0)
 	}
 
-	// Create .repo_search directory
-	indexDir := filepath.Join(absPath, ".repo_search")
+	// Create .codetect directory
+	indexDir := filepath.Join(absPath, ".codetect")
 	if err := os.MkdirAll(indexDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "error: creating index directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	dbPath := filepath.Join(indexDir, "symbols.db")
-	fmt.Fprintf(os.Stderr, "[repo-search-index] indexing %s\n", absPath)
-	fmt.Fprintf(os.Stderr, "[repo-search-index] database: %s\n", dbPath)
+	fmt.Fprintf(os.Stderr, "[codetect-index] indexing %s\n", absPath)
+	fmt.Fprintf(os.Stderr, "[codetect-index] database: %s\n", dbPath)
 
 	start := time.Now()
 
@@ -93,13 +93,13 @@ func runIndex(args []string) {
 
 	// Run indexing
 	if *force {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] running full reindex...")
+		fmt.Fprintln(os.Stderr, "[codetect-index] running full reindex...")
 		if err := idx.FullReindex(absPath); err != nil {
 			fmt.Fprintf(os.Stderr, "error: indexing failed: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] running incremental index...")
+		fmt.Fprintln(os.Stderr, "[codetect-index] running incremental index...")
 		if err := idx.Update(absPath); err != nil {
 			fmt.Fprintf(os.Stderr, "error: indexing failed: %v\n", err)
 			os.Exit(1)
@@ -112,7 +112,7 @@ func runIndex(args []string) {
 		fmt.Fprintf(os.Stderr, "warning: could not get stats: %v\n", err)
 	} else {
 		elapsed := time.Since(start)
-		fmt.Fprintf(os.Stderr, "[repo-search-index] indexed %d symbols from %d files in %v\n",
+		fmt.Fprintf(os.Stderr, "[codetect-index] indexed %d symbols from %d files in %v\n",
 			symbolCount, fileCount, elapsed.Round(time.Millisecond))
 	}
 }
@@ -156,7 +156,7 @@ func runEmbed(args []string) {
 
 	// Check if embedding is disabled
 	if cfg.Provider == embedding.ProviderOff {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] embedding disabled (provider=off)")
+		fmt.Fprintln(os.Stderr, "[codetect-index] embedding disabled (provider=off)")
 		return
 	}
 
@@ -169,25 +169,25 @@ func runEmbed(args []string) {
 
 	// Check availability
 	if !embedder.Available() {
-		fmt.Fprintf(os.Stderr, "[repo-search-index] error: %s not available\n", cfg.Provider)
+		fmt.Fprintf(os.Stderr, "[codetect-index] error: %s not available\n", cfg.Provider)
 		if cfg.Provider == embedding.ProviderOllama {
-			fmt.Fprintln(os.Stderr, "[repo-search-index] install Ollama from https://ollama.ai")
-			fmt.Fprintln(os.Stderr, "[repo-search-index] then run: ollama pull nomic-embed-text")
+			fmt.Fprintln(os.Stderr, "[codetect-index] install Ollama from https://ollama.ai")
+			fmt.Fprintln(os.Stderr, "[codetect-index] then run: ollama pull nomic-embed-text")
 		} else if cfg.Provider == embedding.ProviderLiteLLM {
-			fmt.Fprintln(os.Stderr, "[repo-search-index] check REPO_SEARCH_LITELLM_URL and REPO_SEARCH_LITELLM_API_KEY")
+			fmt.Fprintln(os.Stderr, "[codetect-index] check CODETECT_LITELLM_URL and CODETECT_LITELLM_API_KEY")
 		}
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "[repo-search-index] using provider: %s\n", embedder.ProviderID())
+	fmt.Fprintf(os.Stderr, "[codetect-index] using provider: %s\n", embedder.ProviderID())
 
 	// Open database
-	indexDir := filepath.Join(absPath, ".repo_search")
+	indexDir := filepath.Join(absPath, ".codetect")
 	dbPath := filepath.Join(indexDir, "symbols.db")
 
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] error: no symbol index found")
-		fmt.Fprintln(os.Stderr, "[repo-search-index] run 'repo-search-index index' first")
+		fmt.Fprintln(os.Stderr, "[codetect-index] error: no symbol index found")
+		fmt.Fprintln(os.Stderr, "[codetect-index] run 'codetect-index index' first")
 		os.Exit(1)
 	}
 
@@ -208,7 +208,7 @@ func runEmbed(args []string) {
 
 	// Clear embeddings if force flag set
 	if *force {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] clearing existing embeddings...")
+		fmt.Fprintln(os.Stderr, "[codetect-index] clearing existing embeddings...")
 		if err := searcher.Store().DeleteAll(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: clearing embeddings: %v\n", err)
 			os.Exit(1)
@@ -216,7 +216,7 @@ func runEmbed(args []string) {
 	}
 
 	// Get indexed files and chunk them
-	fmt.Fprintln(os.Stderr, "[repo-search-index] collecting code chunks...")
+	fmt.Fprintln(os.Stderr, "[codetect-index] collecting code chunks...")
 	var allChunks []embedding.Chunk
 	chunkerConfig := embedding.DefaultChunkerConfig()
 
@@ -234,7 +234,7 @@ func runEmbed(args []string) {
 		if info.IsDir() {
 			name := info.Name()
 			// Always skip these directories
-			if name == ".git" || name == "node_modules" || name == "vendor" || name == ".repo_search" {
+			if name == ".git" || name == "node_modules" || name == "vendor" || name == ".codetect" {
 				return filepath.SkipDir
 			}
 			// Check gitignore for directories
@@ -276,10 +276,10 @@ func runEmbed(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "[repo-search-index] found %d chunks to embed\n", len(allChunks))
+	fmt.Fprintf(os.Stderr, "[codetect-index] found %d chunks to embed\n", len(allChunks))
 
 	if len(allChunks) == 0 {
-		fmt.Fprintln(os.Stderr, "[repo-search-index] no chunks to embed")
+		fmt.Fprintln(os.Stderr, "[codetect-index] no chunks to embed")
 		return
 	}
 
@@ -288,7 +288,7 @@ func runEmbed(args []string) {
 	ctx := context.Background()
 
 	progressFn := func(current, total int) {
-		fmt.Fprintf(os.Stderr, "\r[repo-search-index] embedding chunk %d/%d...", current, total)
+		fmt.Fprintf(os.Stderr, "\r[codetect-index] embedding chunk %d/%d...", current, total)
 	}
 
 	if err := searcher.IndexChunks(ctx, allChunks, progressFn); err != nil {
@@ -302,7 +302,7 @@ func runEmbed(args []string) {
 		fmt.Fprintf(os.Stderr, "\nwarning: could not get stats: %v\n", err)
 	} else {
 		elapsed := time.Since(start)
-		fmt.Fprintf(os.Stderr, "\n[repo-search-index] embedded %d chunks from %d files in %v\n",
+		fmt.Fprintf(os.Stderr, "\n[codetect-index] embedded %d chunks from %d files in %v\n",
 			count, fileCount, elapsed.Round(time.Millisecond))
 	}
 }
@@ -402,7 +402,7 @@ func runStats(args []string) {
 		os.Exit(1)
 	}
 
-	dbPath := filepath.Join(absPath, ".repo_search", "symbols.db")
+	dbPath := filepath.Join(absPath, ".codetect", "symbols.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: no index found (run 'index' first)")
 		os.Exit(1)
@@ -436,14 +436,14 @@ func runStats(args []string) {
 }
 
 func printUsage() {
-	fmt.Println(`repo-search-index - Codebase indexer for repo-search MCP
+	fmt.Println(`codetect-index - Codebase indexer for codetect MCP
 
 Usage:
-  repo-search-index index [--force] [path]   Index symbols using ctags
-  repo-search-index embed [options] [path]   Generate embeddings
-  repo-search-index stats [path]             Show index statistics
-  repo-search-index version                  Print version
-  repo-search-index help                     Show this help
+  codetect-index index [--force] [path]   Index symbols using ctags
+  codetect-index embed [options] [path]   Generate embeddings
+  codetect-index stats [path]             Show index statistics
+  codetect-index version                  Print version
+  codetect-index help                     Show this help
 
 Index Options:
   --force    Force full reindex (default: incremental)
@@ -454,14 +454,14 @@ Embed Options:
   --model      Embedding model (provider-specific default if empty)
 
 Environment Variables:
-  REPO_SEARCH_EMBEDDING_PROVIDER   Provider (ollama, litellm, off) [default: ollama]
-  REPO_SEARCH_OLLAMA_URL           Ollama URL [default: http://localhost:11434]
-  REPO_SEARCH_LITELLM_URL          LiteLLM URL [default: http://localhost:4000]
-  REPO_SEARCH_LITELLM_API_KEY      LiteLLM API key
-  REPO_SEARCH_EMBEDDING_MODEL      Model override
-  REPO_SEARCH_EMBEDDING_DIMENSIONS Dimensions override
+  CODETECT_EMBEDDING_PROVIDER   Provider (ollama, litellm, off) [default: ollama]
+  CODETECT_OLLAMA_URL           Ollama URL [default: http://localhost:11434]
+  CODETECT_LITELLM_URL          LiteLLM URL [default: http://localhost:4000]
+  CODETECT_LITELLM_API_KEY      LiteLLM API key
+  CODETECT_EMBEDDING_MODEL      Model override
+  CODETECT_EMBEDDING_DIMENSIONS Dimensions override
 
-The index is stored in .repo_search/symbols.db relative to the indexed path.
+The index is stored in .codetect/symbols.db relative to the indexed path.
 
 Requirements:
   - universal-ctags (for symbol extraction)

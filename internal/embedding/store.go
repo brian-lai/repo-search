@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // EmbeddingRecord represents a stored embedding

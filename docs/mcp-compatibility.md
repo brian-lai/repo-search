@@ -1,6 +1,6 @@
 # MCP Compatibility & Multi-Tool Support
 
-This document outlines repo-search's compatibility with MCP (Model Context Protocol) clients and plans for supporting other CLI-based LLM tools.
+This document outlines codetect's compatibility with MCP (Model Context Protocol) clients and plans for supporting other CLI-based LLM tools.
 
 ## What is MCP?
 
@@ -10,7 +10,7 @@ This document outlines repo-search's compatibility with MCP (Model Context Proto
 - Call tools with structured inputs
 - Receive structured outputs
 
-repo-search implements an MCP server that exposes code search capabilities via the stdio transport.
+codetect implements an MCP server that exposes code search capabilities via the stdio transport.
 
 ## Current MCP Client Support
 
@@ -28,17 +28,17 @@ repo-search implements an MCP server that exposes code search capabilities via t
 
 ### Community-Reported Configurations
 
-We welcome reports of repo-search working with other MCP clients. Please open an issue or PR to add your configuration.
+We welcome reports of codetect working with other MCP clients. Please open an issue or PR to add your configuration.
 
 ## Configuration for MCP Clients
 
-repo-search uses the standard `.mcp.json` configuration format:
+codetect uses the standard `.mcp.json` configuration format:
 
 ```json
 {
   "mcpServers": {
-    "repo-search": {
-      "command": "repo-search-mcp",
+    "codetect": {
+      "command": "codetect-mcp",
       "args": [],
       "cwd": "/path/to/your/project"
     }
@@ -54,14 +54,14 @@ Most MCP clients will automatically discover this configuration when placed in t
 
 ```bash
 cd /path/to/project
-repo-search init    # Creates .mcp.json
-repo-search index   # Index symbols
+codetect init    # Creates .mcp.json
+codetect index   # Index symbols
 claude              # Start Claude Code
 ```
 
 #### Cursor
 
-Cursor reads `.mcp.json` from the workspace root. After running `repo-search init`, restart Cursor to pick up the configuration.
+Cursor reads `.mcp.json` from the workspace root. After running `codetect init`, restart Cursor to pick up the configuration.
 
 #### Cline / Continue
 
@@ -73,7 +73,7 @@ These VS Code extensions typically read MCP configuration from:
 
 ### Current Status
 
-repo-search is currently MCP-only. Tools that don't support MCP cannot directly use it.
+codetect is currently MCP-only. Tools that don't support MCP cannot directly use it.
 
 ### Tools Without MCP Support
 
@@ -86,7 +86,7 @@ repo-search is currently MCP-only. Tools that don't support MCP cannot directly 
 
 ## Roadmap: Multi-Tool Support
 
-We plan to expand repo-search to support non-MCP tools through additional interfaces:
+We plan to expand codetect to support non-MCP tools through additional interfaces:
 
 ### Phase 1: HTTP API Mode (Planned)
 
@@ -94,7 +94,7 @@ Add an HTTP server mode that exposes the same tools via REST API:
 
 ```bash
 # Start HTTP server
-repo-search serve --port 8080
+codetect serve --port 8080
 
 # Query via curl
 curl -X POST http://localhost:8080/search_keyword \
@@ -110,12 +110,12 @@ Add direct CLI commands for querying:
 
 ```bash
 # Direct CLI usage
-repo-search search "func main" --limit 5
-repo-search symbol Server --kind struct
-repo-search semantic "error handling logic"
+codetect search "func main" --limit 5
+codetect symbol Server --kind struct
+codetect semantic "error handling logic"
 ```
 
-This would allow tools to shell out to repo-search directly.
+This would allow tools to shell out to codetect directly.
 
 ### Phase 3: Language Server Protocol (Considered)
 
@@ -125,7 +125,7 @@ LSP integration could provide IDE-native symbol search and navigation, complemen
 
 We welcome contributions to expand tool support:
 
-1. **Testing with MCP clients**: Report which clients work with repo-search
+1. **Testing with MCP clients**: Report which clients work with codetect
 2. **HTTP API implementation**: Help build the REST interface
 3. **CLI query mode**: Help build direct CLI commands
 4. **Documentation**: Add setup guides for specific tools

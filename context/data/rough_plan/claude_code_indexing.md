@@ -8,7 +8,7 @@ The goal is to give Claude Code **Cursor-like speed and grounding** with minimal
 
 ## Executive Summary
 
-We will ship a **single Go-based local tool** (`repo-search`) that:
+We will ship a **single Go-based local tool** (`codetect`) that:
 
 * Indexes a repository locally (incremental)
 * Exposes retrieval capabilities to Claude Code via MCP (stdio)
@@ -46,7 +46,7 @@ Claude Code (local)
   │
   │ MCP (stdio)
   ▼
-repo-search (Go binary)
+codetect (Go binary)
   │
   ├─ Keyword search (ripgrep)
   ├─ Symbol index (ctags → SQLite)
@@ -71,7 +71,7 @@ Deliver the core harness that everything else builds on.
 * MCP stdio server
 * `search_keyword` (ripgrep)
 * `get_file`
-* Repo-scoped indexing directory (`.repo_search/`)
+* Repo-scoped indexing directory (`.codetect/`)
 * `.gitignore` + default ignores
 * `bin/claude` wrapper
 * `doctor` command
@@ -190,7 +190,7 @@ Backward compatibility will be preserved.
 
 ## Indexing Strategy
 
-* Index stored in `.repo_search/` (gitignored)
+* Index stored in `.codetect/` (gitignored)
 * Incremental updates using:
 
   * file mtime

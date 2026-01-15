@@ -149,7 +149,7 @@ func NewIPCClient(socketPath string) *IPCClient {
 
 // DefaultSocketPath returns the default socket path for the current user
 func DefaultSocketPath() string {
-	return fmt.Sprintf("/tmp/repo-search-%d.sock", os.Getuid())
+	return fmt.Sprintf("/tmp/codetect-%d.sock", os.Getuid())
 }
 
 // Send sends a command to the daemon and returns the response

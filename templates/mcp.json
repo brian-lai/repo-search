@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "repo-search": {
-      "command": "repo-search",
+    "codetect": {
+      "command": "codetect",
       "args": ["mcp"]
     }
   }

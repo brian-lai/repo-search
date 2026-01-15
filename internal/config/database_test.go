@@ -4,17 +4,17 @@ import (
 	"os"
 	"testing"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 	// Save and restore original environment
 	originalEnv := make(map[string]string)
 	envVars := []string{
-		"REPO_SEARCH_DB_TYPE",
-		"REPO_SEARCH_DB_DSN",
-		"REPO_SEARCH_DB_PATH",
-		"REPO_SEARCH_VECTOR_DIMENSIONS",
+		"CODETECT_DB_TYPE",
+		"CODETECT_DB_DSN",
+		"CODETECT_DB_PATH",
+		"CODETECT_VECTOR_DIMENSIONS",
 	}
 	for _, key := range envVars {
 		originalEnv[key] = os.Getenv(key)
@@ -43,8 +43,8 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("PostgreSQL Explicit Type", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_DB_TYPE", "postgres")
-		os.Setenv("REPO_SEARCH_DB_DSN", "postgresql://user:pass@localhost/test")
+		os.Setenv("CODETECT_DB_TYPE", "postgres")
+		os.Setenv("CODETECT_DB_DSN", "postgresql://user:pass@localhost/test")
 
 		cfg := LoadDatabaseConfigFromEnv()
 
@@ -56,12 +56,12 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 			t.Errorf("Expected DSN to be set, got %s", cfg.DSN)
 		}
 
-		os.Unsetenv("REPO_SEARCH_DB_TYPE")
-		os.Unsetenv("REPO_SEARCH_DB_DSN")
+		os.Unsetenv("CODETECT_DB_TYPE")
+		os.Unsetenv("CODETECT_DB_DSN")
 	})
 
 	t.Run("PostgreSQL Auto-Detect from DSN", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_DB_DSN", "postgres://user:pass@localhost/test")
+		os.Setenv("CODETECT_DB_DSN", "postgres://user:pass@localhost/test")
 
 		cfg := LoadDatabaseConfigFromEnv()
 
@@ -69,12 +69,12 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 			t.Errorf("Expected type PostgreSQL (auto-detected), got %v", cfg.Type)
 		}
 
-		os.Unsetenv("REPO_SEARCH_DB_DSN")
+		os.Unsetenv("CODETECT_DB_DSN")
 	})
 
 	t.Run("SQLite with Path", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_DB_TYPE", "sqlite")
-		os.Setenv("REPO_SEARCH_DB_PATH", "/custom/path/db.sqlite")
+		os.Setenv("CODETECT_DB_TYPE", "sqlite")
+		os.Setenv("CODETECT_DB_PATH", "/custom/path/db.sqlite")
 
 		cfg := LoadDatabaseConfigFromEnv()
 
@@ -86,12 +86,12 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 			t.Errorf("Expected custom path, got %s", cfg.Path)
 		}
 
-		os.Unsetenv("REPO_SEARCH_DB_TYPE")
-		os.Unsetenv("REPO_SEARCH_DB_PATH")
+		os.Unsetenv("CODETECT_DB_TYPE")
+		os.Unsetenv("CODETECT_DB_PATH")
 	})
 
 	t.Run("Custom Vector Dimensions", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_VECTOR_DIMENSIONS", "1536")
+		os.Setenv("CODETECT_VECTOR_DIMENSIONS", "1536")
 
 		cfg := LoadDatabaseConfigFromEnv()
 
@@ -99,11 +99,11 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 			t.Errorf("Expected dimensions 1536, got %d", cfg.VectorDimensions)
 		}
 
-		os.Unsetenv("REPO_SEARCH_VECTOR_DIMENSIONS")
+		os.Unsetenv("CODETECT_VECTOR_DIMENSIONS")
 	})
 
 	t.Run("Invalid Database Type Falls Back to SQLite", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_DB_TYPE", "invalid")
+		os.Setenv("CODETECT_DB_TYPE", "invalid")
 
 		cfg := LoadDatabaseConfigFromEnv()
 
@@ -111,7 +111,7 @@ func TestLoadDatabaseConfigFromEnv(t *testing.T) {
 			t.Errorf("Expected fallback to SQLite, got %v", cfg.Type)
 		}
 
-		os.Unsetenv("REPO_SEARCH_DB_TYPE")
+		os.Unsetenv("CODETECT_DB_TYPE")
 	})
 }
 
@@ -163,7 +163,7 @@ func TestToDBConfig(t *testing.T) {
 
 		dbCfg := cfg.ToDBConfig()
 
-		if dbCfg.Path != ".repo_search/symbols.db" {
+		if dbCfg.Path != ".codetect/symbols.db" {
 			t.Errorf("Expected default path, got %s", dbCfg.Path)
 		}
 	})

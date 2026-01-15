@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# repo-search - Global wrapper script for repo-search MCP server
+# codetect - Global wrapper script for codetect MCP server
 #
 # Commands:
 #   mcp            Start MCP server (used by .mcp.json)
 #   index          Index symbols in current directory
 #   embed          Generate embeddings for semantic search
-#   init           Initialize repo-search in current directory
+#   init           Initialize codetect in current directory
 #   doctor         Check installation and dependencies
 #   stats          Show index statistics
 #   migrate        Discover existing indexes and register them
@@ -18,15 +18,15 @@
 set -e
 
 # Installation paths
-INSTALL_PREFIX="${REPO_SEARCH_PREFIX:-$HOME/.local}"
+INSTALL_PREFIX="${CODETECT_PREFIX:-$HOME/.local}"
 BIN_DIR="$INSTALL_PREFIX/bin"
-SHARE_DIR="$INSTALL_PREFIX/share/repo-search"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/repo-search"
+SHARE_DIR="$INSTALL_PREFIX/share/codetect"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/codetect"
 CONFIG_FILE="$CONFIG_DIR/config.env"
 REGISTRY_FILE="$CONFIG_DIR/registry.json"
 PID_FILE="$CONFIG_DIR/daemon.pid"
 LOG_FILE="$CONFIG_DIR/daemon.log"
-SOCKET_PATH="/tmp/repo-search-$(id -u).sock"
+SOCKET_PATH="/tmp/codetect-$(id -u).sock"
 
 # Colors
 RED='\033[0;31m'
@@ -70,7 +70,7 @@ load_config() {
 
 cmd_mcp() {
     load_config
-    exec "$BIN_DIR/repo-search-mcp" "$@"
+    exec "$BIN_DIR/codetect-mcp" "$@"
 }
 
 cmd_index() {
@@ -78,7 +78,7 @@ cmd_index() {
     local target_dir="${1:-.}"
 
     echo -e "${CYAN}Indexing symbols in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" index "$target_dir"
+    "$BIN_DIR/codetect-index" index "$target_dir"
     success "Symbol indexing complete"
 }
 
@@ -86,14 +86,14 @@ cmd_embed() {
     load_config
     local target_dir="${1:-.}"
 
-    if [[ "$REPO_SEARCH_EMBEDDING_PROVIDER" == "off" ]]; then
+    if [[ "$CODETECT_EMBEDDING_PROVIDER" == "off" ]]; then
         warn "Embedding provider is disabled"
-        info "Set REPO_SEARCH_EMBEDDING_PROVIDER in $CONFIG_FILE to enable"
+        info "Set CODETECT_EMBEDDING_PROVIDER in $CONFIG_FILE to enable"
         return 0
     fi
 
     echo -e "${CYAN}Generating embeddings in: ${target_dir}${NC}"
-    "$BIN_DIR/repo-search-index" embed "$target_dir"
+    "$BIN_DIR/codetect-index" embed "$target_dir"
     success "Embedding complete"
 }
 
@@ -105,7 +105,7 @@ cmd_init() {
 
     if [[ -f ".mcp.json" && "$force" != "true" ]]; then
         warn ".mcp.json already exists"
-        info "Use 'repo-search init --force' to overwrite"
+        info "Use 'codetect init --force' to overwrite"
         return 1
     fi
 
@@ -116,8 +116,8 @@ cmd_init() {
         cat > .mcp.json << 'EOF'
 {
   "mcpServers": {
-    "repo-search": {
-      "command": "repo-search",
+    "codetect": {
+      "command": "codetect",
       "args": ["mcp"]
     }
   }
@@ -132,15 +132,15 @@ EOF
     # Register in central registry
     registry_add "$(pwd)" 2>/dev/null || true
 
-    info "Run 'repo-search index' to index this codebase"
+    info "Run 'codetect index' to index this codebase"
 
     # Add to .gitignore if exists
     if [[ -f ".gitignore" ]]; then
-        if ! grep -q "^\.repo_search/$" .gitignore 2>/dev/null; then
+        if ! grep -q "^\.codetect/$" .gitignore 2>/dev/null; then
             echo "" >> .gitignore
-            echo "# repo-search index" >> .gitignore
-            echo ".repo_search/" >> .gitignore
-            success "Added .repo_search/ to .gitignore"
+            echo "# codetect index" >> .gitignore
+            echo ".codetect/" >> .gitignore
+            success "Added .codetect/ to .gitignore"
         fi
     fi
 }
@@ -148,21 +148,21 @@ EOF
 cmd_doctor() {
     load_config
 
-    echo -e "${CYAN}repo-search Installation Check${NC}"
+    echo -e "${CYAN}codetect Installation Check${NC}"
     echo ""
 
     # Check binaries
     echo "Binaries:"
-    if [[ -x "$BIN_DIR/repo-search-mcp" ]]; then
-        success "repo-search-mcp: $BIN_DIR/repo-search-mcp"
+    if [[ -x "$BIN_DIR/codetect-mcp" ]]; then
+        success "codetect-mcp: $BIN_DIR/codetect-mcp"
     else
-        error "repo-search-mcp not found at $BIN_DIR/repo-search-mcp"
+        error "codetect-mcp not found at $BIN_DIR/codetect-mcp"
     fi
 
-    if [[ -x "$BIN_DIR/repo-search-index" ]]; then
-        success "repo-search-index: $BIN_DIR/repo-search-index"
+    if [[ -x "$BIN_DIR/codetect-index" ]]; then
+        success "codetect-index: $BIN_DIR/codetect-index"
     else
-        error "repo-search-index not found at $BIN_DIR/repo-search-index"
+        error "codetect-index not found at $BIN_DIR/codetect-index"
     fi
     echo ""
 
@@ -185,15 +185,15 @@ cmd_doctor() {
 
     # Check embedding provider
     echo "Embedding Provider:"
-    local provider="${REPO_SEARCH_EMBEDDING_PROVIDER:-ollama}"
+    local provider="${CODETECT_EMBEDDING_PROVIDER:-ollama}"
 
     case "$provider" in
         ollama)
             echo -e "  Provider: ${GREEN}Ollama${NC}"
-            local ollama_url="${REPO_SEARCH_OLLAMA_URL:-http://localhost:11434}"
+            local ollama_url="${CODETECT_OLLAMA_URL:-http://localhost:11434}"
             if curl -s "$ollama_url/api/tags" &> /dev/null; then
                 success "Ollama is running at $ollama_url"
-                local model="${REPO_SEARCH_EMBEDDING_MODEL:-nomic-embed-text}"
+                local model="${CODETECT_EMBEDDING_MODEL:-nomic-embed-text}"
                 if curl -s "$ollama_url/api/tags" | grep -q "$model"; then
                     success "Model '$model' is available"
                 else
@@ -205,7 +205,7 @@ cmd_doctor() {
             ;;
         litellm)
             echo -e "  Provider: ${GREEN}LiteLLM${NC}"
-            local litellm_url="${REPO_SEARCH_LITELLM_URL:-http://localhost:4000}"
+            local litellm_url="${CODETECT_LITELLM_URL:-http://localhost:4000}"
             if curl -s "$litellm_url/health" &> /dev/null; then
                 success "LiteLLM is running at $litellm_url"
             else
@@ -237,25 +237,25 @@ cmd_doctor() {
     if [[ -f ".mcp.json" ]]; then
         success ".mcp.json exists"
     else
-        info "No .mcp.json (run 'repo-search init' to create)"
+        info "No .mcp.json (run 'codetect init' to create)"
     fi
 
-    if [[ -d ".repo_search" ]]; then
-        success ".repo_search/ index exists"
-        if [[ -f ".repo_search/symbols.db" ]]; then
-            local size=$(du -h ".repo_search/symbols.db" | cut -f1)
+    if [[ -d ".codetect" ]]; then
+        success ".codetect/ index exists"
+        if [[ -f ".codetect/symbols.db" ]]; then
+            local size=$(du -h ".codetect/symbols.db" | cut -f1)
             info "Database size: $size"
         fi
     else
-        info "No index (run 'repo-search index' to create)"
+        info "No index (run 'codetect index' to create)"
     fi
 }
 
 cmd_stats() {
     load_config
 
-    if [[ ! -f ".repo_search/symbols.db" ]]; then
-        error "No index found. Run 'repo-search index' first."
+    if [[ ! -f ".codetect/symbols.db" ]]; then
+        error "No index found. Run 'codetect index' first."
         return 1
     fi
 
@@ -263,19 +263,19 @@ cmd_stats() {
     echo ""
 
     # Symbol count
-    local symbols=$(sqlite3 ".repo_search/symbols.db" "SELECT COUNT(*) FROM symbols" 2>/dev/null || echo "0")
+    local symbols=$(sqlite3 ".codetect/symbols.db" "SELECT COUNT(*) FROM symbols" 2>/dev/null || echo "0")
     echo "Symbols: $symbols"
 
     # File count
-    local files=$(sqlite3 ".repo_search/symbols.db" "SELECT COUNT(DISTINCT path) FROM symbols" 2>/dev/null || echo "0")
+    local files=$(sqlite3 ".codetect/symbols.db" "SELECT COUNT(DISTINCT path) FROM symbols" 2>/dev/null || echo "0")
     echo "Files with symbols: $files"
 
     # Embedding count
-    local embeddings=$(sqlite3 ".repo_search/symbols.db" "SELECT COUNT(*) FROM embeddings" 2>/dev/null || echo "0")
+    local embeddings=$(sqlite3 ".codetect/symbols.db" "SELECT COUNT(*) FROM embeddings" 2>/dev/null || echo "0")
     echo "Embedded chunks: $embeddings"
 
     # Database size
-    local size=$(du -h ".repo_search/symbols.db" | cut -f1)
+    local size=$(du -h ".codetect/symbols.db" | cut -f1)
     echo "Database size: $size"
 }
 
@@ -326,16 +326,16 @@ daemon_start() {
     mkdir -p "$CONFIG_DIR"
 
     # Check if daemon binary exists
-    if [[ ! -x "$BIN_DIR/repo-search-daemon" ]]; then
-        error "repo-search-daemon not found at $BIN_DIR/repo-search-daemon"
-        info "Run 'make install' from the repo-search directory"
+    if [[ ! -x "$BIN_DIR/codetect-daemon" ]]; then
+        error "codetect-daemon not found at $BIN_DIR/codetect-daemon"
+        info "Run 'make install' from the codetect directory"
         return 1
     fi
 
     echo -e "${CYAN}Starting daemon...${NC}"
 
     # Start daemon in background
-    nohup "$BIN_DIR/repo-search-daemon" start --foreground >> "$LOG_FILE" 2>&1 &
+    nohup "$BIN_DIR/codetect-daemon" start --foreground >> "$LOG_FILE" 2>&1 &
     local pid=$!
 
     # Wait for socket to be ready
@@ -350,7 +350,7 @@ daemon_start() {
         info "Log file: $LOG_FILE"
     else
         error "Daemon failed to start"
-        info "Check logs: repo-search daemon logs"
+        info "Check logs: codetect daemon logs"
         return 1
     fi
 }
@@ -398,7 +398,7 @@ daemon_status() {
         fi
     else
         echo -e "${YELLOW}Daemon is not running${NC}"
-        info "Start with: repo-search daemon start"
+        info "Start with: codetect daemon start"
     fi
 }
 
@@ -420,7 +420,7 @@ daemon_is_running() {
 }
 
 daemon_help() {
-    echo "Usage: repo-search daemon <command>"
+    echo "Usage: codetect daemon <command>"
     echo ""
     echo "Commands:"
     echo "  start       Start the background daemon"
@@ -464,7 +464,7 @@ cmd_registry() {
 registry_list() {
     if [[ ! -f "$REGISTRY_FILE" ]]; then
         info "No projects registered"
-        info "Run 'repo-search init' in a project to register it"
+        info "Run 'codetect init' in a project to register it"
         return 0
     fi
 
@@ -642,7 +642,7 @@ print(f'Total index size: {total_size / 1024 / 1024:.2f} MB')
 }
 
 registry_help() {
-    echo "Usage: repo-search registry <command>"
+    echo "Usage: codetect registry <command>"
     echo ""
     echo "Commands:"
     echo "  list        List all registered projects"
@@ -693,7 +693,7 @@ cmd_migrate() {
         )
     fi
 
-    echo -e "${CYAN}Scanning for existing repo-search indexes...${NC}"
+    echo -e "${CYAN}Scanning for existing codetect indexes...${NC}"
     echo ""
 
     local found=()
@@ -721,10 +721,10 @@ except:
             continue
         fi
 
-        # Find all .repo_search directories (max depth 3 to avoid deep recursion)
+        # Find all .codetect directories (max depth 3 to avoid deep recursion)
         while IFS= read -r index_dir; do
             if [[ -n "$index_dir" ]]; then
-                # Get project directory (parent of .repo_search)
+                # Get project directory (parent of .codetect)
                 local project_dir=$(dirname "$index_dir")
                 found+=("$project_dir")
 
@@ -735,7 +735,7 @@ except:
                     new_projects+=("$project_dir")
                 fi
             fi
-        done < <(find "$base_path" -maxdepth 4 -type d -name ".repo_search" 2>/dev/null)
+        done < <(find "$base_path" -maxdepth 4 -type d -name ".codetect" 2>/dev/null)
     done
 
     # Report findings
@@ -754,7 +754,7 @@ except:
         echo ""
         info "To index a project manually:"
         info "  cd /path/to/project"
-        info "  repo-search init && repo-search index"
+        info "  codetect init && codetect index"
         return 0
     fi
 
@@ -805,7 +805,7 @@ except:
             if [[ $success_count -gt 0 ]] && ! daemon_is_running; then
                 echo ""
                 info "Start the daemon to auto-reindex on file changes:"
-                info "  repo-search daemon start"
+                info "  codetect daemon start"
             fi
         fi
     else
@@ -814,9 +814,9 @@ except:
 }
 
 migrate_help() {
-    echo "Usage: repo-search migrate [options] [paths...]"
+    echo "Usage: codetect migrate [options] [paths...]"
     echo ""
-    echo "Scan for existing .repo_search indexes and register them in the central registry."
+    echo "Scan for existing .codetect indexes and register them in the central registry."
     echo ""
     echo "Options:"
     echo "  --dry-run, -n   Show what would be registered without making changes"
@@ -826,17 +826,17 @@ migrate_help() {
     echo "  paths           Directories to scan (default: ~/dev, ~/projects, ~/code, etc.)"
     echo ""
     echo "Examples:"
-    echo "  repo-search migrate                    # Scan default locations"
-    echo "  repo-search migrate --dry-run         # Preview without registering"
-    echo "  repo-search migrate ~/work ~/personal # Scan specific directories"
+    echo "  codetect migrate                    # Scan default locations"
+    echo "  codetect migrate --dry-run         # Preview without registering"
+    echo "  codetect migrate ~/work ~/personal # Scan specific directories"
 }
 
 cmd_update() {
-    local source_dir="${REPO_SEARCH_SOURCE:-$HOME/dev/repo-search}"
+    local source_dir="${CODETECT_SOURCE:-$HOME/dev/codetect}"
 
     if [[ ! -f "$source_dir/scripts/update.sh" ]]; then
         error "Update script not found"
-        info "Set REPO_SEARCH_SOURCE to the location of your repo-search clone"
+        info "Set CODETECT_SOURCE to the location of your codetect clone"
         info "Default: $source_dir"
         return 1
     fi
@@ -845,9 +845,9 @@ cmd_update() {
 }
 
 cmd_help() {
-    echo -e "${CYAN}repo-search${NC} - MCP server for codebase search & navigation"
+    echo -e "${CYAN}codetect${NC} - MCP server for codebase search & navigation"
     echo ""
-    echo "Usage: repo-search <command> [options]"
+    echo "Usage: codetect <command> [options]"
     echo ""
     echo "Commands:"
     echo "  mcp             Start MCP server (used by .mcp.json)"
@@ -880,10 +880,10 @@ cmd_help() {
     echo "  Per-project:   .mcp.json (created by 'init')"
     echo ""
     echo "Quick Start:"
-    echo "  repo-search init          # Initialize project"
-    echo "  repo-search index         # Index symbols"
-    echo "  repo-search migrate       # Register existing indexes"
-    echo "  repo-search daemon start  # Start background daemon"
+    echo "  codetect init          # Initialize project"
+    echo "  codetect index         # Index symbols"
+    echo "  codetect migrate       # Register existing indexes"
+    echo "  codetect daemon start  # Start background daemon"
     echo "  claude                    # Start Claude Code"
 }
 

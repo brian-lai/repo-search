@@ -1,4 +1,4 @@
-// Package evals provides evaluation tools for measuring repo-search MCP performance.
+// Package evals provides evaluation tools for measuring codetect MCP performance.
 package evals
 
 import (
