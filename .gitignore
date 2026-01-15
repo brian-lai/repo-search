@@ -26,3 +26,5 @@ Thumbs.db
 
 .claude
 .mcp.json
+# codetect index
+.codetect/
