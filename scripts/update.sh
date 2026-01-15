@@ -40,6 +40,12 @@ info() {
 echo -e "${CYAN}Updating repo-search...${NC}"
 echo ""
 
+# Show migration notice
+warn "⚠️  repo-search has been renamed to 'codetect' in v2.0.0"
+info "This update will only install v1.x (final repo-search releases)"
+info "To upgrade to codetect v2: https://github.com/brian-lai/codetect"
+echo ""
+
 # Check if source directory exists
 if [[ ! -d "$SOURCE_DIR" ]]; then
     error "Source directory not found: $SOURCE_DIR"
@@ -63,19 +69,32 @@ OLD_COMMIT=$(git rev-parse --short HEAD)
 
 # Pull latest
 echo "Fetching latest changes..."
-git fetch origin main
+git fetch origin --tags
 
-# Check if there are updates
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
+# Find latest v1.x.x tag
+LATEST_V1=$(git tag -l 'v1.*' | sort -V | tail -n1)
 
-if [[ "$LOCAL" == "$REMOTE" ]]; then
-    success "Already up to date ($OLD_COMMIT)"
+if [[ -z "$LATEST_V1" ]]; then
+    error "No v1.x tags found"
+    exit 1
+fi
+
+# Check if we're already on the latest v1
+CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+if [[ "$CURRENT_TAG" == "$LATEST_V1" ]]; then
+    success "Already on latest repo-search version: $LATEST_V1"
+    echo ""
+    warn "Note: repo-search has been renamed to 'codetect' in v2.0.0"
+    info "To upgrade to codetect v2:"
+    info "  1. Visit: https://github.com/brian-lai/codetect"
+    info "  2. Follow the migration guide"
+    info "  3. Install codetect (new name, new features)"
     exit 0
 fi
 
-# Pull changes
-git pull origin main
+# Checkout latest v1 tag
+echo "Updating to $LATEST_V1..."
+git checkout "$LATEST_V1"
 NEW_COMMIT=$(git rev-parse --short HEAD)
 
 success "Updated: $OLD_COMMIT → $NEW_COMMIT"
