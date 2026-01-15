@@ -9,13 +9,15 @@ Executing: Fix PostgreSQL Indexing Bug
 
 ### Phase 1: Refactor Symbol Index for Adapter Pattern Compliance
 
-- [ ] Add `getSQLDB()` helper method for transaction support
-- [ ] Refactor `FindSymbol()` to use adapter + dialect-aware placeholders
-- [ ] Refactor `ListDefsInFile()` to use adapter + dialect-aware placeholders
-- [ ] Refactor `Update()` to use getSQLDB for transactions + convert placeholders
-- [ ] Refactor `FullReindex()` to use getSQLDB for transactions + convert placeholders
-- [ ] Refactor `Stats()` to use adapter
-- [ ] Update `NewIndexWithConfig` documentation and add deprecation comment to `NewIndex`
+- [x] Refactor `FindSymbol()` to use adapter + dialect-aware placeholders
+- [x] Refactor `ListDefsInFile()` to use adapter + dialect-aware placeholders
+- [x] Refactor `Update()` to use adapter transactions + dialect-aware upserts
+- [x] Refactor `FullReindex()` to use adapter
+- [x] Refactor `Stats()` to use adapter
+- [x] Refactor `getFilesToIndex()` to use adapter
+- [x] Update `NewIndexWithConfig` documentation and add deprecation comment to `NewIndex`
+
+**Note:** No `getSQLDB()` helper was needed - the adapter's `Begin()` method returns `db.Tx` which supports all transaction operations including `Prepare()`.
 
 ### Phase 2: Update codetect-index Commands
 
