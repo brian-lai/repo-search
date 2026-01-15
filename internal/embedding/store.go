@@ -65,18 +65,21 @@ func embeddingColumnsForDialect(dialect db.Dialect, vectorDim int) []db.ColumnDe
 
 // NewEmbeddingStore creates a new embedding store using a db.DB adapter.
 // Defaults to SQLite dialect for backward compatibility.
-func NewEmbeddingStore(database db.DB) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithDialect(database, db.GetDialect(db.DatabaseSQLite))
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStore(database db.DB, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithDialect(database, db.GetDialect(db.DatabaseSQLite), repoRoot)
 }
 
 // NewEmbeddingStoreWithDialect creates an embedding store with a specific SQL dialect.
 // Uses default vector dimensions (768) for PostgreSQL.
-func NewEmbeddingStoreWithDialect(database db.DB, dialect db.Dialect) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithOptions(database, dialect, 768)
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreWithDialect(database db.DB, dialect db.Dialect, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithOptions(database, dialect, 768, repoRoot)
 }
 
 // NewEmbeddingStoreWithOptions creates an embedding store with custom vector dimensions.
-func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim int) (*EmbeddingStore, error) {
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim int, repoRoot string) (*EmbeddingStore, error) {
 	useNativeVec := dialect.Name() == "postgres"
 
 	store := &EmbeddingStore{
@@ -85,6 +88,7 @@ func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim 
 		schema:       db.NewSchemaBuilder(database, dialect),
 		vectorDim:    vectorDim,
 		useNativeVec: useNativeVec,
+		repoRoot:     repoRoot,
 	}
 
 	// Initialize schema
@@ -98,13 +102,15 @@ func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim 
 // NewEmbeddingStoreFromSQL creates an embedding store from a raw *sql.DB.
 // This is for backward compatibility with existing code.
 // Prefer NewEmbeddingStore with db.DB for new code.
-func NewEmbeddingStoreFromSQL(sqlDB *sql.DB) (*EmbeddingStore, error) {
-	return NewEmbeddingStore(db.WrapSQL(sqlDB))
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreFromSQL(sqlDB *sql.DB, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStore(db.WrapSQL(sqlDB), repoRoot)
 }
 
 // NewEmbeddingStoreFromConfig creates an embedding store using a db.Config.
-func NewEmbeddingStoreFromConfig(database db.DB, cfg db.Config) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithDialect(database, cfg.Dialect())
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreFromConfig(database db.DB, cfg db.Config, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithDialect(database, cfg.Dialect(), repoRoot)
 }
 
 // initSchema creates the embeddings table if it doesn't exist.

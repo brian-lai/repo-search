@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"codetect/internal/config"
@@ -84,6 +85,12 @@ func main() {
 		fmt.Println()
 	}
 
+	// Get repo root from SQLite path (parent of .codetect directory)
+	repoRoot, err := filepath.Abs(filepath.Dir(filepath.Dir(*sqlitePath)))
+	if err != nil {
+		repoRoot, _ = os.Getwd() // Fall back to current directory
+	}
+
 	// Open source database (SQLite)
 	sqliteCfg := db.DefaultConfig(*sqlitePath)
 	sqliteCfg.VectorDimensions = pgConfig.VectorDimensions
@@ -94,7 +101,7 @@ func main() {
 	}
 	defer sourceDB.Close()
 
-	sourceStore, err := embedding.NewEmbeddingStore(sourceDB)
+	sourceStore, err := embedding.NewEmbeddingStore(sourceDB, repoRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating source embedding store: %v\n", err)
 		os.Exit(1)
@@ -112,7 +119,7 @@ func main() {
 
 	// Get SQL dialect for PostgreSQL from config
 	dialect := targetCfg.Dialect()
-	targetStore, err := embedding.NewEmbeddingStoreWithDialect(targetDB, dialect)
+	targetStore, err := embedding.NewEmbeddingStoreWithDialect(targetDB, dialect, repoRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating target embedding store: %v\n", err)
 		os.Exit(1)

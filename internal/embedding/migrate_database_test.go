@@ -9,6 +9,9 @@ import (
 )
 
 func TestMigrateDatabase(t *testing.T) {
+	// Test repo root for multi-repo isolation
+	testRepoRoot := "/test/repo"
+
 	// Set up source SQLite database
 	sourceCfg := db.DefaultConfig(":memory:")
 	sourceDB, err := db.Open(sourceCfg)
@@ -17,7 +20,7 @@ func TestMigrateDatabase(t *testing.T) {
 	}
 	defer sourceDB.Close()
 
-	sourceStore, err := NewEmbeddingStore(sourceDB)
+	sourceStore, err := NewEmbeddingStore(sourceDB, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create source store: %v", err)
 	}
@@ -30,7 +33,7 @@ func TestMigrateDatabase(t *testing.T) {
 	}
 	defer targetDB.Close()
 
-	targetStore, err := NewEmbeddingStore(targetDB)
+	targetStore, err := NewEmbeddingStore(targetDB, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create target store: %v", err)
 	}
@@ -161,6 +164,9 @@ func TestMigrateDatabase(t *testing.T) {
 }
 
 func TestValidateMigration(t *testing.T) {
+	// Test repo root for multi-repo isolation
+	testRepoRoot := "/test/repo"
+
 	// Set up source database
 	sourceCfg := db.DefaultConfig(":memory:")
 	sourceDB, err := db.Open(sourceCfg)
@@ -169,7 +175,7 @@ func TestValidateMigration(t *testing.T) {
 	}
 	defer sourceDB.Close()
 
-	sourceStore, err := NewEmbeddingStore(sourceDB)
+	sourceStore, err := NewEmbeddingStore(sourceDB, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create source store: %v", err)
 	}
@@ -182,7 +188,7 @@ func TestValidateMigration(t *testing.T) {
 	}
 	defer targetDB.Close()
 
-	targetStore, err := NewEmbeddingStore(targetDB)
+	targetStore, err := NewEmbeddingStore(targetDB, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create target store: %v", err)
 	}
@@ -233,7 +239,7 @@ func TestValidateMigration(t *testing.T) {
 		}
 		defer emptySourceDB.Close()
 
-		emptySource, _ := NewEmbeddingStore(emptySourceDB)
+		emptySource, _ := NewEmbeddingStore(emptySourceDB, testRepoRoot)
 
 		emptyTargetCfg := db.DefaultConfig(":memory:")
 		emptyTargetDB, err := db.Open(emptyTargetCfg)
@@ -242,7 +248,7 @@ func TestValidateMigration(t *testing.T) {
 		}
 		defer emptyTargetDB.Close()
 
-		emptyTarget, _ := NewEmbeddingStore(emptyTargetDB)
+		emptyTarget, _ := NewEmbeddingStore(emptyTargetDB, testRepoRoot)
 
 		err = ValidateMigration(emptySource, emptyTarget, 10)
 		if err != nil {
@@ -259,6 +265,9 @@ func TestMigrateDatabaseWithVectorIndex(t *testing.T) {
 		t.Skip("POSTGRES_TEST_DSN not set, skipping PostgreSQL migration test")
 	}
 
+	// Test repo root for multi-repo isolation
+	testRepoRoot := "/test/repo"
+
 	// Set up source SQLite database
 	sourceCfg := db.DefaultConfig(":memory:")
 	sourceDB, err := db.Open(sourceCfg)
@@ -267,7 +276,7 @@ func TestMigrateDatabaseWithVectorIndex(t *testing.T) {
 	}
 	defer sourceDB.Close()
 
-	sourceStore, err := NewEmbeddingStore(sourceDB)
+	sourceStore, err := NewEmbeddingStore(sourceDB, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create source store: %v", err)
 	}
@@ -297,7 +306,7 @@ func TestMigrateDatabaseWithVectorIndex(t *testing.T) {
 	defer targetDB.Close()
 
 	targetDialect := db.GetDialect(db.DatabasePostgres)
-	targetStore, err := NewEmbeddingStoreWithOptions(targetDB, targetDialect, 3)
+	targetStore, err := NewEmbeddingStoreWithOptions(targetDB, targetDialect, 3, testRepoRoot)
 	if err != nil {
 		t.Fatalf("Failed to create target store: %v", err)
 	}

@@ -164,13 +164,14 @@ func openIndex() (*symbols.Index, error) {
 	// Load database configuration from environment
 	dbConfig := config.LoadDatabaseConfigFromEnv()
 
+	// Get current working directory as repo root for multi-repo isolation
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getting working directory: %w", err)
+	}
+
 	// For SQLite, use path relative to current working directory
 	if dbConfig.Type == db.DatabaseSQLite {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("getting working directory: %w", err)
-		}
-
 		dbPath := filepath.Join(cwd, ".codetect", "symbols.db")
 		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 			return nil, fmt.Errorf("no symbol index found - run 'make index' first")
@@ -180,5 +181,5 @@ func openIndex() (*symbols.Index, error) {
 
 	// Convert to db.Config and open with config-aware constructor
 	cfg := dbConfig.ToDBConfig()
-	return symbols.NewIndexWithConfig(cfg)
+	return symbols.NewIndexWithConfig(cfg, cwd)
 }

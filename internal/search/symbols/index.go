@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ type Index struct {
 }
 
 // NewIndex creates or opens a symbol index at the given path.
-// Uses SQLite by default.
+// Uses SQLite by default. Sets repoRoot to current working directory.
 //
 // Deprecated: Use NewIndexWithConfig for new code. This constructor is
 // maintained for backward compatibility with existing SQLite-based workflows.
@@ -33,21 +34,26 @@ func NewIndex(dbPath string) (*Index, error) {
 		return nil, err
 	}
 
+	// Default to current working directory for repo root
+	cwd, _ := os.Getwd()
+
 	return &Index{
 		sqlDB:   sqlDB,
 		adapter: db.WrapSQL(sqlDB),
 		dialect: db.GetDialect(db.DatabaseSQLite),
 		dbPath:  dbPath,
+		root:    cwd,
 	}, nil
 }
 
 // NewIndexWithConfig creates a symbol index using the provided configuration.
+// repoRoot is the absolute path to the repository root, used for multi-repo isolation.
 // This is the preferred constructor for new code as it supports multiple
 // database backends (SQLite, PostgreSQL) through the adapter pattern.
 //
 // All Index methods use the adapter interface and dialect-aware SQL,
 // enabling seamless database backend switching without code changes.
-func NewIndexWithConfig(cfg db.Config) (*Index, error) {
+func NewIndexWithConfig(cfg db.Config, repoRoot string) (*Index, error) {
 	database, err := db.Open(cfg)
 	if err != nil {
 		return nil, err
@@ -65,6 +71,7 @@ func NewIndexWithConfig(cfg db.Config) (*Index, error) {
 		adapter: database,
 		dialect: dialect,
 		dbPath:  cfg.Path,
+		root:    repoRoot,
 	}, nil
 }
 

@@ -211,6 +211,12 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 
 // openEmbeddingStore opens an embedding store with the given configuration.
 func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingStore, error) {
+	// Get current working directory as repo root for multi-repo isolation
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getting working directory: %w", err)
+	}
+
 	switch dbConfig.Type {
 	case db.DatabasePostgres:
 		// Open PostgreSQL database
@@ -224,9 +230,9 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 			return nil, fmt.Errorf("opening PostgreSQL: %w", err)
 		}
 
-		// Create embedding store with PostgreSQL dialect
+		// Create embedding store with PostgreSQL dialect and repoRoot
 		dialect := db.GetDialect(db.DatabasePostgres)
-		store, err := embedding.NewEmbeddingStoreWithOptions(database, dialect, dbConfig.VectorDimensions)
+		store, err := embedding.NewEmbeddingStoreWithOptions(database, dialect, dbConfig.VectorDimensions, cwd)
 		if err != nil {
 			database.Close()
 			return nil, fmt.Errorf("creating PostgreSQL embedding store: %w", err)
@@ -235,11 +241,6 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 		return store, nil
 
 	default: // SQLite
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("getting working directory: %w", err)
-		}
-
 		// Determine database path
 		dbPath := dbConfig.Path
 		if dbPath == "" {
@@ -257,8 +258,8 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 			return nil, fmt.Errorf("opening SQLite index: %w", err)
 		}
 
-		// Create embedding store from index database
-		store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB())
+		// Create embedding store from index database with repoRoot
+		store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB(), cwd)
 		if err != nil {
 			return nil, fmt.Errorf("creating SQLite embedding store: %w", err)
 		}

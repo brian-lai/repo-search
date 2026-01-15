@@ -94,8 +94,8 @@ func runIndex(args []string) {
 
 	start := time.Now()
 
-	// Open or create index using config-aware constructor
-	idx, err := symbols.NewIndexWithConfig(cfg)
+	// Open or create index using config-aware constructor with repoRoot for multi-repo isolation
+	idx, err := symbols.NewIndexWithConfig(cfg, absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
@@ -212,19 +212,20 @@ func runEmbed(args []string) {
 
 	fmt.Fprintf(os.Stderr, "[codetect-index] database: %s\n", dbConfig.String())
 
-	// Open index using config-aware constructor
-	idx, err := symbols.NewIndexWithConfig(dbCfg)
+	// Open index using config-aware constructor with repoRoot for multi-repo isolation
+	idx, err := symbols.NewIndexWithConfig(dbCfg, absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
 	}
 	defer idx.Close()
 
-	// Create embedding store with dialect-aware constructor
+	// Create embedding store with dialect-aware constructor and repoRoot
 	store, err := embedding.NewEmbeddingStoreWithOptions(
 		idx.DBAdapter(),
 		idx.Dialect(),
 		dbConfig.VectorDimensions,
+		absPath,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: creating embedding store: %v\n", err)
@@ -444,8 +445,8 @@ func runStats(args []string) {
 	// Convert to db.Config
 	dbCfg := dbConfig.ToDBConfig()
 
-	// Open index using config-aware constructor
-	idx, err := symbols.NewIndexWithConfig(dbCfg)
+	// Open index using config-aware constructor with repoRoot for multi-repo isolation
+	idx, err := symbols.NewIndexWithConfig(dbCfg, absPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: opening index: %v\n", err)
 		os.Exit(1)
@@ -462,11 +463,12 @@ func runStats(args []string) {
 	fmt.Printf("Symbols: %d\n", symbolCount)
 	fmt.Printf("Files: %d\n", fileCount)
 
-	// Try to get embedding stats using dialect-aware constructor
+	// Try to get embedding stats using dialect-aware constructor with repoRoot
 	store, err := embedding.NewEmbeddingStoreWithOptions(
 		idx.DBAdapter(),
 		idx.Dialect(),
 		dbConfig.VectorDimensions,
+		absPath,
 	)
 	if err == nil {
 		embCount, embFileCount, err := store.Stats()
