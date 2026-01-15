@@ -1,72 +1,75 @@
 # Current Work Summary
 
-Executing: Fix PostgreSQL Indexing Bug
+Executing: Multi-Repository Isolation - Phase 1: Schema Changes
 
-**Branch:** `para/fix-postgres-indexing`
-**Plan:** context/plans/2026-01-14-fix-postgres-indexing.md
+**Branch:** `para/multi-repo-isolation-phase-1`
+**Master Plan:** context/plans/2026-01-14-multi-repo-isolation.md
+**Phase Plan:** context/plans/2026-01-14-multi-repo-isolation-phase-1.md
 
 ## To-Do List
 
-### Phase 1: Refactor Symbol Index for Adapter Pattern Compliance
+### Symbol Index Schema (`internal/search/symbols/schema.go`)
 
-- [x] Refactor `FindSymbol()` to use adapter + dialect-aware placeholders
-- [x] Refactor `ListDefsInFile()` to use adapter + dialect-aware placeholders
-- [x] Refactor `Update()` to use adapter transactions + dialect-aware upserts
-- [x] Refactor `FullReindex()` to use adapter
-- [x] Refactor `Stats()` to use adapter
-- [x] Refactor `getFilesToIndex()` to use adapter
-- [x] Update `NewIndexWithConfig` documentation and add deprecation comment to `NewIndex`
+- [ ] Add `repo_root` column to symbols table in `initSchemaWithAdapter()`
+- [ ] Update symbols unique index to include `repo_root`
+- [ ] Add `repo_root` column to files table
+- [ ] Add composite unique index for files `(repo_root, path)`
+- [ ] Add `idx_symbols_repo_path` index for efficient queries
+- [ ] Update SQLite hardcoded schema with `repo_root`
+- [ ] Increment schema version to 2
 
-**Note:** No `getSQLDB()` helper was needed - the adapter's `Begin()` method returns `db.Tx` which supports all transaction operations including `Prepare()`.
+### Embedding Store Schema (`internal/embedding/store.go`)
 
-### Phase 2: Update codetect-index Commands
+- [ ] Add `repo_root` column to `embeddingColumnsForDialect()`
+- [ ] Update embeddings unique index to include `repo_root`
+- [ ] Update SQLite hardcoded embeddings schema
+- [ ] Add `repoRoot` field to `EmbeddingStore` struct
 
-- [x] Update `runIndex()` to load config and use `NewIndexWithConfig`
-- [x] Update `runEmbed()` to load config and use dialect-aware store
-- [x] Update `runStats()` to load config and open correct database
-- [x] Update help message with database environment variables
+### Verification
 
-### Phase 3: SQLite Backward Compatibility
-
-- [x] Add SQLite default path handling when no env vars set (handled in Phase 2 - each command checks db type and sets path accordingly)
-
-### Phase 4: Update Symbol Tools
-
-- [x] Update `openIndex()` in `internal/tools/symbols.go` to use database config
-
-### Phase 5: Testing & Verification
-
-- [x] Run existing tests to ensure no regressions
-- [x] Test end-to-end SQLite backward compatibility
-- [x] Test end-to-end PostgreSQL indexing
+- [ ] Run unit tests: `go test ./internal/search/symbols/... ./internal/embedding/...`
+- [ ] Test fresh PostgreSQL schema creation
+- [ ] Test fresh SQLite schema creation
 
 ## Progress Notes
 
-**2026-01-14 Phase 5 Testing:**
-- Found and fixed critical bug: `NewIndexWithConfig` wasn't initializing database schema
-- Added `initSchemaWithAdapter()` to support dialect-aware schema creation
-- Fixed duplicate PRIMARY KEY constraint issue in SQLite/PostgreSQL dialects
-- All unit tests pass
-- SQLite end-to-end: Working correctly
-- PostgreSQL end-to-end: Working correctly (tested with codetect-postgres container on port 5465)
-
-**All phases complete!** The fix enables `codetect-index` to use PostgreSQL when `CODETECT_DB_TYPE=postgres` and `CODETECT_DB_DSN` are set.
+_Update this section as you complete items._
 
 ---
 
 ```json
 {
   "active_context": [
-    "context/plans/2026-01-14-fix-postgres-indexing.md"
+    "context/plans/2026-01-14-multi-repo-isolation.md",
+    "context/plans/2026-01-14-multi-repo-isolation-phase-1.md"
   ],
-  "completed_summaries": [
-    "context/summaries/2026-01-14-postgres-pgvector-support-complete-summary.md"
-  ],
-  "archived_contexts": [
-    "context/archives/2026-01-14-2206-postgres-pgvector-complete.md"
-  ],
-  "execution_branch": "para/fix-postgres-indexing",
-  "execution_started": "2026-01-14T23:20:00Z",
-  "last_updated": "2026-01-14T23:20:00Z"
+  "completed_summaries": [],
+  "execution_branch": "para/multi-repo-isolation-phase-1",
+  "execution_started": "2026-01-15T00:15:00Z",
+  "phased_execution": {
+    "master_plan": "context/plans/2026-01-14-multi-repo-isolation.md",
+    "phases": [
+      {
+        "phase": 1,
+        "plan": "context/plans/2026-01-14-multi-repo-isolation-phase-1.md",
+        "status": "in_progress",
+        "branch": "para/multi-repo-isolation-phase-1"
+      },
+      {
+        "phase": 2,
+        "plan": "context/plans/2026-01-14-multi-repo-isolation-phase-2.md",
+        "status": "pending",
+        "branch": "para/multi-repo-isolation-phase-2"
+      },
+      {
+        "phase": 3,
+        "plan": "context/plans/2026-01-14-multi-repo-isolation-phase-3.md",
+        "status": "pending",
+        "branch": "para/multi-repo-isolation-phase-3"
+      }
+    ],
+    "current_phase": 1
+  },
+  "last_updated": "2026-01-15T00:15:00Z"
 }
 ```
