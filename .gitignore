@@ -24,9 +24,6 @@ dist/
 *.swp
 *.swo
 
-# Local index storage
-.repo_search/
-
 # OS files
 .DS_Store
 Thumbs.db
