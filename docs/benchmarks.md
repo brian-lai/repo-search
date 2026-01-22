@@ -37,7 +37,10 @@ Our benchmarks measure two critical operations for semantic code search:
 - Medium: 1,000 vectors (typical for medium projects)
 - Large: 10,000 vectors (typical for large codebases)
 
-**Dimensions:** 768 (standard for `nomic-embed-text` model)
+**Dimensions:**
+- Test uses 768 dimensions (compatible with `nomic-embed-text` default model)
+- **Note:** Recommended models use 1024 dimensions (see [Embedding Model Comparison](./embedding-model-comparison.md))
+- Performance characteristics remain similar across 768-1024 dimension range
 
 **What's measured:**
 - Query latency (time to find top-10 similar vectors)
@@ -314,7 +317,8 @@ All benchmarks run on:
 - **OS:** macOS 14 (Darwin 24.6.0)
 - **Go:** 1.21+
 - **PostgreSQL:** 16 with pgvector 0.7.0
-- **Embeddings:** 768-dimensional (nomic-embed-text)
+- **Embeddings:** 768-dimensional (baseline: `nomic-embed-text`)
+  - **Note:** Performance characteristics are similar for 1024-dimensional models (recommended)
 
 ### Benchmark Implementation
 
@@ -342,7 +346,8 @@ All benchmarks run on:
 **Vectors:**
 - Randomly generated
 - Normalized to unit length (cosine similarity)
-- Dimensions: 768 (standard for nomic-embed-text)
+- Dimensions: 768 (baseline test configuration)
+- **Note:** Results generalize to 1024 dimensions with ~10% performance impact
 
 **Why random data?**
 - Eliminates bias from specific code patterns
@@ -512,6 +517,7 @@ SET hnsw.ef_search = 100;  -- Higher = better accuracy, slower search
 
 ## Related Documentation
 
+- [Embedding Model Comparison](./embedding-model-comparison.md) - Choosing the best embedding model for code search
 - [PostgreSQL Setup Guide](./postgres-setup.md) - Installation and configuration
 - [Architecture](./architecture.md) - How vector search works internally
 - [Evaluation Guide](./evaluation.md) - End-to-end MCP tool performance

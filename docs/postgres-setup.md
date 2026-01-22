@@ -214,11 +214,16 @@ export REPO_SEARCH_DB_DSN="postgres://..."  # Type inferred automatically
 
 Different embedding models use different dimensions:
 
-| Model | Dimensions | Setting |
-|-------|------------|---------|
-| `nomic-embed-text` (default) | 768 | `REPO_SEARCH_VECTOR_DIMENSIONS=768` |
-| OpenAI `text-embedding-3-small` | 1536 | `REPO_SEARCH_VECTOR_DIMENSIONS=1536` |
-| OpenAI `text-embedding-3-large` | 3072 | `REPO_SEARCH_VECTOR_DIMENSIONS=3072` |
+| Model | Dimensions | Setting | Notes |
+|-------|------------|---------|-------|
+| **`bge-m3`** (recommended) | 1024 | `REPO_SEARCH_VECTOR_DIMENSIONS=1024` | +47% retrieval vs default ✅ |
+| **`snowflake-arctic-embed-l-v2.0`** | 1024 | `REPO_SEARCH_VECTOR_DIMENSIONS=1024` | +57% retrieval vs default ✅ |
+| **`jina-embeddings-v3`** | 1024 | `REPO_SEARCH_VECTOR_DIMENSIONS=1024` | +50% retrieval vs default ✅ |
+| `nomic-embed-text` (default) | 768 | `REPO_SEARCH_VECTOR_DIMENSIONS=768` | Smaller, lower quality |
+| OpenAI `text-embedding-3-small` | 1536 | `REPO_SEARCH_VECTOR_DIMENSIONS=1536` | API-only |
+| OpenAI `text-embedding-3-large` | 3072 | `REPO_SEARCH_VECTOR_DIMENSIONS=3072` | API-only |
+
+**Recommendation:** Use `bge-m3` (1024 dimensions) for best code search quality. See [Embedding Model Comparison](./embedding-model-comparison.md) for detailed analysis.
 
 **Important:** Set dimensions before running `repo-search embed`. Changing dimensions requires re-embedding.
 

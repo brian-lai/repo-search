@@ -131,6 +131,8 @@ Search using natural language (requires Ollama):
 {"query": "error handling logic", "limit": 10}
 ```
 
+**Tip:** Use `bge-m3` embedding model for 47% better retrieval quality. See [Embedding Model Comparison](docs/embedding-model-comparison.md).
+
 ### hybrid_search
 
 Combined keyword + semantic search:
@@ -143,16 +145,25 @@ Combined keyword + semantic search:
 
 ### Embedding Provider
 
-Configure embedding provider via environment variables:
+Configure embedding provider and model:
 
 ```bash
-# Use Ollama (default)
-export REPO_SEARCH_EMBEDDING_PROVIDER=ollama
+# Recommended: Use bge-m3 for best quality
+ollama pull bge-m3
+export REPO_SEARCH_EMBEDDING_MODEL=bge-m3
+export REPO_SEARCH_VECTOR_DIMENSIONS=1024
+
+# Or use default (smaller, lower quality)
+ollama pull nomic-embed-text
+export REPO_SEARCH_EMBEDDING_MODEL=nomic-embed-text
+export REPO_SEARCH_VECTOR_DIMENSIONS=768
 
 # Or use LiteLLM/OpenAI
 export REPO_SEARCH_EMBEDDING_PROVIDER=litellm
 export REPO_SEARCH_LITELLM_API_KEY=sk-...
 ```
+
+See [Embedding Model Comparison](docs/embedding-model-comparison.md) for detailed model selection guidance.
 
 ### Database Backend
 
@@ -209,6 +220,7 @@ See [Evaluation Guide](docs/evaluation.md) for detailed documentation on creatin
 ## Documentation
 
 - [Installation Guide](docs/installation.md) - Detailed setup and configuration
+- [Embedding Model Comparison](docs/embedding-model-comparison.md) - Choosing the best embedding model for code search
 - [PostgreSQL Setup Guide](docs/postgres-setup.md) - PostgreSQL + pgvector for scalable vector search
 - [Benchmarks](docs/benchmarks.md) - Vector search performance benchmarks and methodology
 - [Evaluation Guide](docs/evaluation.md) - Performance testing and benchmarking
