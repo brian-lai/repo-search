@@ -916,7 +916,7 @@ cmd_update() {
         return 1
     fi
 
-    exec "$source_dir/scripts/update.sh"
+    exec "$source_dir/scripts/update.sh" "$@"
 }
 
 cmd_help() {

@@ -3,8 +3,18 @@
 # codetect update script
 # Updates codetect to the latest version from GitHub
 #
+# Usage:
+#   codetect update         # Update to latest version
+#   codetect update --force # Force rebuild even if already on latest
+#
 
 set -e
+
+# Parse flags
+FORCE_REBUILD=false
+if [[ "$1" == "--force" || "$1" == "-f" ]]; then
+    FORCE_REBUILD=true
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -75,23 +85,30 @@ fi
 
 # Check if we're already on the latest version
 CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-if [[ "$CURRENT_TAG" == "$LATEST_VERSION" ]]; then
+if [[ "$CURRENT_TAG" == "$LATEST_VERSION" && "$FORCE_REBUILD" != "true" ]]; then
     success "Already on latest version: $LATEST_VERSION"
+    info "Use 'codetect update --force' to rebuild anyway"
     exit 0
 fi
 
-# Checkout latest version tag
-echo "Updating to $LATEST_VERSION..."
-git checkout "$LATEST_VERSION"
-NEW_COMMIT=$(git rev-parse --short HEAD)
+if [[ "$CURRENT_TAG" == "$LATEST_VERSION" ]]; then
+    # Force rebuild on same version
+    warn "Forcing rebuild on $LATEST_VERSION"
+    NEW_COMMIT="$OLD_COMMIT"
+else
+    # Checkout latest version tag
+    echo "Updating to $LATEST_VERSION..."
+    git checkout "$LATEST_VERSION"
+    NEW_COMMIT=$(git rev-parse --short HEAD)
 
-success "Updated: $OLD_COMMIT → $NEW_COMMIT"
-echo ""
+    success "Updated: $OLD_COMMIT → $NEW_COMMIT"
+    echo ""
 
-# Show what changed
-echo "Changes:"
-git log --oneline "$OLD_COMMIT".."$NEW_COMMIT" | head -10
-echo ""
+    # Show what changed
+    echo "Changes:"
+    git log --oneline "$OLD_COMMIT".."$NEW_COMMIT" | head -10
+    echo ""
+fi
 
 # Build
 echo "Building..."
