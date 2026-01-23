@@ -1361,7 +1361,7 @@ if [[ "${DIMENSION_MISMATCH:-false}" == "true" ]]; then
         if command -v jq &> /dev/null; then
             while IFS= read -r repo; do
                 [[ -n "$repo" ]] && INDEXED_REPOS+=("$repo")
-            done < <(jq -r '.repositories[]?.path // empty' "$REGISTRY_FILE" 2>/dev/null)
+            done < <(jq -r '.projects[]?.path // empty' "$REGISTRY_FILE" 2>/dev/null)
         else
             # Fallback: crude grep for paths
             while IFS= read -r repo; do
