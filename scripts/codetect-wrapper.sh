@@ -84,7 +84,6 @@ cmd_index() {
 
 cmd_embed() {
     load_config
-    local target_dir="${1:-.}"
 
     if [[ "$CODETECT_EMBEDDING_PROVIDER" == "off" ]]; then
         warn "Embedding provider is disabled"
@@ -92,8 +91,8 @@ cmd_embed() {
         return 0
     fi
 
-    echo -e "${CYAN}Generating embeddings in: ${target_dir}${NC}"
-    "$BIN_DIR/codetect-index" embed "$target_dir"
+    echo -e "${CYAN}Generating embeddings...${NC}"
+    "$BIN_DIR/codetect-index" embed "$@"
     success "Embedding complete"
 }
 
