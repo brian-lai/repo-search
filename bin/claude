@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# repo-search Claude wrapper
+# codetect Claude wrapper
 # Runs indexing (no-op in Phase 1) and then launches Claude Code
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

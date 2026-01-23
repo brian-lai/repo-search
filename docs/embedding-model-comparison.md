@@ -230,8 +230,8 @@ Based on empirical MTEB data, we analyzed the relationship between embedding dim
 ✅ **Easy deployment**
 ```bash
 ollama pull bge-m3
-export REPO_SEARCH_EMBEDDING_MODEL="bge-m3"
-export REPO_SEARCH_VECTOR_DIMENSIONS=1024
+export CODETECT_EMBEDDING_MODEL="bge-m3"
+export CODETECT_VECTOR_DIMENSIONS=1024
 ```
 
 ### Alternative: `snowflake-arctic-embed-l-v2.0`
@@ -248,8 +248,8 @@ export REPO_SEARCH_VECTOR_DIMENSIONS=1024
 
 ```bash
 ollama pull snowflake-arctic-embed
-export REPO_SEARCH_EMBEDDING_MODEL="snowflake-arctic-embed"
-export REPO_SEARCH_VECTOR_DIMENSIONS=1024
+export CODETECT_EMBEDDING_MODEL="snowflake-arctic-embed"
+export CODETECT_VECTOR_DIMENSIONS=1024
 ```
 
 ### Alternative: `jina-embeddings-v3`
@@ -265,8 +265,8 @@ export REPO_SEARCH_VECTOR_DIMENSIONS=1024
 
 ```bash
 ollama pull jina/jina-embeddings-v3
-export REPO_SEARCH_EMBEDDING_MODEL="jina-embeddings-v3"
-export REPO_SEARCH_VECTOR_DIMENSIONS=1024
+export CODETECT_EMBEDDING_MODEL="jina-embeddings-v3"
+export CODETECT_VECTOR_DIMENSIONS=1024
 ```
 
 ### Keep `nomic-embed-text-v1` If:
@@ -293,12 +293,12 @@ ollama list | grep bge-m3
 
 ```bash
 # Update environment variables
-export REPO_SEARCH_EMBEDDING_MODEL="bge-m3"
-export REPO_SEARCH_VECTOR_DIMENSIONS=1024
+export CODETECT_EMBEDDING_MODEL="bge-m3"
+export CODETECT_VECTOR_DIMENSIONS=1024
 
-# Or update .env.repo-search
-echo 'export REPO_SEARCH_EMBEDDING_MODEL="bge-m3"' >> .env.repo-search
-echo 'export REPO_SEARCH_VECTOR_DIMENSIONS=1024' >> .env.repo-search
+# Or update global config
+echo 'export CODETECT_EMBEDDING_MODEL="bge-m3"' >> ~/.config/codetect/config.env
+echo 'export CODETECT_VECTOR_DIMENSIONS=1024' >> ~/.config/codetect/config.env
 ```
 
 ### Step 3: Re-index Your Codebase
@@ -307,22 +307,22 @@ echo 'export REPO_SEARCH_VECTOR_DIMENSIONS=1024' >> .env.repo-search
 
 ```bash
 # For SQLite backend
-repo-search embed --force
+codetect embed --force
 
 # For PostgreSQL backend
 # The --force flag will drop and recreate the embeddings table
-repo-search embed --force
+codetect embed --force
 
 # Or manually drop the table first
 psql $POSTGRES_DSN -c "DROP TABLE IF EXISTS embeddings CASCADE;"
-repo-search embed
+codetect embed
 ```
 
 ### Step 4: Verify Performance
 
 ```bash
 # Test semantic search
-repo-search search "function that handles authentication"
+codetect search "function that handles authentication"
 
 # Test via MCP tool (if using Claude Code)
 # The search results should show improved relevance
@@ -334,10 +334,10 @@ Create test queries before and after migration:
 
 ```bash
 # Before migration (nomic-embed-text-v1)
-repo-search search "error handling" > before.txt
+codetect search "error handling" > before.txt
 
 # After migration (bge-m3)
-repo-search search "error handling" > after.txt
+codetect search "error handling" > after.txt
 
 # Compare result quality manually
 ```
