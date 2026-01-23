@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 // SemanticResult represents a search result from semantic search
@@ -206,6 +208,142 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 		}
 		successfulChunks = append(successfulChunks, chunk)
 		successfulEmbeddings = append(successfulEmbeddings, embs[0])
+	}
+
+	if skippedCount > 0 {
+		fmt.Fprintf(os.Stderr, "\n[codetect-index] skipped %d chunks that failed to embed\n", skippedCount)
+	}
+
+	// Save all successful embeddings with provider ID
+	if len(successfulChunks) > 0 {
+		if err := s.store.SaveBatch(successfulChunks, successfulEmbeddings, providerID); err != nil {
+			return fmt.Errorf("saving embeddings: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// IndexChunksParallel embeds and stores chunks with configurable parallelism.
+func (s *SemanticSearcher) IndexChunksParallel(ctx context.Context, chunks []Chunk, parallelism int, progressFn func(current, total int)) error {
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	if !s.Available() {
+		return fmt.Errorf("embedding provider not available")
+	}
+
+	providerID := s.embedder.ProviderID()
+
+	// Filter out already indexed chunks
+	var toEmbed []Chunk
+	for _, chunk := range chunks {
+		has, err := s.store.HasEmbedding(chunk, providerID)
+		if err != nil {
+			return fmt.Errorf("checking embedding: %w", err)
+		}
+		if !has {
+			toEmbed = append(toEmbed, chunk)
+		}
+	}
+
+	if len(toEmbed) == 0 {
+		return nil // All chunks already indexed
+	}
+
+	// Limit parallelism to number of chunks
+	if parallelism <= 0 {
+		parallelism = len(toEmbed)
+	}
+	if parallelism > len(toEmbed) {
+		parallelism = len(toEmbed)
+	}
+
+	// Sequential execution for parallelism=1
+	if parallelism == 1 {
+		return s.IndexChunks(ctx, chunks, progressFn)
+	}
+
+	// Parallel execution with worker pool
+	type job struct {
+		index int
+		chunk Chunk
+	}
+
+	type result struct {
+		chunk     Chunk
+		embedding []float32
+		err       error
+	}
+
+	jobs := make(chan job, len(toEmbed))
+	results := make(chan result, len(toEmbed))
+
+	// Atomic counter for progress
+	var completed atomic.Int32
+	total := int32(len(toEmbed))
+
+	// Spawn workers
+	var wg sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				select {
+				case <-ctx.Done():
+					results <- result{err: ctx.Err()}
+					return
+				default:
+				}
+
+				// Embed chunk
+				embs, err := s.embedder.Embed(ctx, []string{j.chunk.Content})
+				if err != nil {
+					results <- result{chunk: j.chunk, err: err}
+				} else if len(embs) == 0 || len(embs[0]) == 0 {
+					results <- result{chunk: j.chunk, err: fmt.Errorf("empty embedding")}
+				} else {
+					results <- result{chunk: j.chunk, embedding: embs[0], err: nil}
+				}
+
+				// Update progress
+				current := completed.Add(1)
+				if progressFn != nil {
+					progressFn(int(current), int(total))
+				}
+			}
+		}()
+	}
+
+	// Send jobs
+	for i, chunk := range toEmbed {
+		jobs <- job{index: i, chunk: chunk}
+	}
+	close(jobs)
+
+	// Wait for workers and close results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	var successfulChunks []Chunk
+	var successfulEmbeddings [][]float32
+	var skippedCount int
+
+	for res := range results {
+		if res.err != nil {
+			if res.err == ctx.Err() {
+				return res.err
+			}
+			skippedCount++
+			continue
+		}
+		successfulChunks = append(successfulChunks, res.chunk)
+		successfulEmbeddings = append(successfulEmbeddings, res.embedding)
 	}
 
 	if skippedCount > 0 {

@@ -139,6 +139,7 @@ func runEmbed(args []string) {
 	force := fs.Bool("force", false, "Re-embed all chunks (ignore cache)")
 	provider := fs.String("provider", "", "Embedding provider (ollama, litellm, off)")
 	model := fs.String("model", "", "Embedding model (provider-specific default if empty)")
+	parallel := fs.Int("parallel", 10, "Number of parallel embedding workers (default: 10)")
 	fs.Parse(args)
 
 	path := "."
@@ -349,7 +350,7 @@ func runEmbed(args []string) {
 		fmt.Fprintf(os.Stderr, "\rembedding chunk %d/%d...", current, total)
 	}
 
-	if err := searcher.IndexChunks(ctx, allChunks, progressFn); err != nil {
+	if err := searcher.IndexChunksParallel(ctx, allChunks, *parallel, progressFn); err != nil {
 		fmt.Fprintln(os.Stderr) // newline after progress
 		logger.Error("embedding failed", "error", err)
 		os.Exit(1)
