@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -101,41 +103,153 @@ func (r *Runner) loadJSONLFile(path string) ([]TestCase, error) {
 	return cases, scanner.Err()
 }
 
-// RunAll executes all test cases in both modes.
+// testJob represents a test case to be executed.
+type testJob struct {
+	index    int
+	testCase TestCase
+}
+
+// testResult contains the results from running a test case in both modes.
+type testResult struct {
+	index      int
+	withMCP    *RunResult
+	withoutMCP *RunResult
+}
+
+// RunAll executes all test cases in both modes, with configurable parallelism.
 func (r *Runner) RunAll(ctx context.Context, cases []TestCase) (*EvalReport, error) {
 	report := &EvalReport{
 		Timestamp: time.Now(),
 		Config:    r.config,
 	}
 
+	// Determine parallelism level (0 means use number of test cases)
+	parallelism := r.config.Parallel
+	if parallelism <= 0 {
+		parallelism = len(cases)
+	}
+	if parallelism > len(cases) {
+		parallelism = len(cases)
+	}
+
+	// If sequential execution (parallelism=1), use simple loop for clarity
+	if parallelism == 1 {
+		for i, tc := range cases {
+			if r.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[%d/%d] Running: %s\n", i+1, len(cases), tc.ID)
+			}
+
+			// Run with MCP
+			withMCP, err := r.runTestCase(ctx, tc, ModeWithMCP)
+			if err != nil {
+				withMCP = &RunResult{
+					TestCaseID: tc.ID,
+					Mode:       ModeWithMCP,
+					Success:    false,
+					Error:      err.Error(),
+				}
+			}
+			report.RawResults = append(report.RawResults, *withMCP)
+
+			// Run without MCP
+			withoutMCP, err := r.runTestCase(ctx, tc, ModeWithoutMCP)
+			if err != nil {
+				withoutMCP = &RunResult{
+					TestCaseID: tc.ID,
+					Mode:       ModeWithoutMCP,
+					Success:    false,
+					Error:      err.Error(),
+				}
+			}
+			report.RawResults = append(report.RawResults, *withoutMCP)
+		}
+		return report, nil
+	}
+
+	// Parallel execution with worker pool
+	jobs := make(chan testJob, len(cases))
+	results := make(chan testResult, len(cases))
+
+	// Atomic counter for progress tracking
+	var completed atomic.Int32
+	total := int32(len(cases))
+
+	// Spawn worker goroutines
+	var wg sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				// Run with MCP
+				withMCP, err := r.runTestCase(ctx, job.testCase, ModeWithMCP)
+				if err != nil {
+					withMCP = &RunResult{
+						TestCaseID: job.testCase.ID,
+						Mode:       ModeWithMCP,
+						Success:    false,
+						Error:      err.Error(),
+					}
+				}
+
+				// Run without MCP
+				withoutMCP, err := r.runTestCase(ctx, job.testCase, ModeWithoutMCP)
+				if err != nil {
+					withoutMCP = &RunResult{
+						TestCaseID: job.testCase.ID,
+						Mode:       ModeWithoutMCP,
+						Success:    false,
+						Error:      err.Error(),
+					}
+				}
+
+				// Send result
+				results <- testResult{
+					index:      job.index,
+					withMCP:    withMCP,
+					withoutMCP: withoutMCP,
+				}
+
+				// Update progress
+				current := completed.Add(1)
+				if r.config.Verbose {
+					fmt.Fprintf(os.Stderr, "[%d/%d] Completed: %s\n", current, total, job.testCase.ID)
+				}
+			}
+		}()
+	}
+
+	// Send jobs to workers
 	for i, tc := range cases {
-		if r.config.Verbose {
-			fmt.Fprintf(os.Stderr, "[%d/%d] Running: %s\n", i+1, len(cases), tc.ID)
-		}
+		jobs <- testJob{index: i, testCase: tc}
+	}
+	close(jobs)
 
-		// Run with MCP
-		withMCP, err := r.runTestCase(ctx, tc, ModeWithMCP)
-		if err != nil {
-			withMCP = &RunResult{
-				TestCaseID: tc.ID,
-				Mode:       ModeWithMCP,
-				Success:    false,
-				Error:      err.Error(),
+	// Wait for all workers to finish, then close results channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results and sort by index to maintain order
+	collectedResults := make([]testResult, 0, len(cases))
+	for result := range results {
+		collectedResults = append(collectedResults, result)
+	}
+
+	// Sort by original index to preserve test case order in report
+	for i := 0; i < len(collectedResults)-1; i++ {
+		for j := i + 1; j < len(collectedResults); j++ {
+			if collectedResults[j].index < collectedResults[i].index {
+				collectedResults[i], collectedResults[j] = collectedResults[j], collectedResults[i]
 			}
 		}
-		report.RawResults = append(report.RawResults, *withMCP)
+	}
 
-		// Run without MCP
-		withoutMCP, err := r.runTestCase(ctx, tc, ModeWithoutMCP)
-		if err != nil {
-			withoutMCP = &RunResult{
-				TestCaseID: tc.ID,
-				Mode:       ModeWithoutMCP,
-				Success:    false,
-				Error:      err.Error(),
-			}
-		}
-		report.RawResults = append(report.RawResults, *withoutMCP)
+	// Append to report in correct order
+	for _, result := range collectedResults {
+		report.RawResults = append(report.RawResults, *result.withMCP)
+		report.RawResults = append(report.RawResults, *result.withoutMCP)
 	}
 
 	return report, nil

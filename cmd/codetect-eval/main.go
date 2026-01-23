@@ -53,6 +53,7 @@ func runEval(args []string) {
 	casesDir := fs.String("cases", "evals/cases", "Directory containing test case JSONL files")
 	outputDir := fs.String("output", "evals/results", "Output directory for results")
 	categories := fs.String("category", "", "Filter by category (comma-separated: search,navigate,understand)")
+	parallel := fs.Int("parallel", 10, "Number of parallel test case executions (default: 10)")
 	timeout := fs.Duration("timeout", 5*time.Minute, "Timeout per test case")
 	verbose := fs.Bool("verbose", false, "Verbose output")
 	fs.Parse(args)
@@ -60,6 +61,7 @@ func runEval(args []string) {
 	config := evals.DefaultConfig()
 	config.RepoPath = *repoPath
 	config.OutputDir = *outputDir
+	config.Parallel = *parallel
 	config.Timeout = *timeout
 	config.Verbose = *verbose
 
@@ -364,6 +366,7 @@ Run Options:
   --cases <dir>      Test cases directory (default: evals/cases)
   --output <dir>     Output directory (default: evals/results)
   --category <cat>   Filter by category (search,navigate,understand)
+  --parallel <n>     Number of parallel executions (default: 10)
   --timeout <dur>    Timeout per test (default: 5m)
   --verbose          Verbose output
 
