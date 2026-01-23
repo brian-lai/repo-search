@@ -122,7 +122,7 @@ func (r *Reporter) GenerateSummary(report *EvalReport) {
 // PrintReport writes a formatted report to the given writer.
 func (r *Reporter) PrintReport(report *EvalReport, w io.Writer) {
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "repo-search MCP Evaluation Report")
+	fmt.Fprintln(w, "codetect MCP Evaluation Report")
 	fmt.Fprintln(w, "=================================")
 	fmt.Fprintln(w, "")
 	fmt.Fprintf(w, "Timestamp: %s\n", report.Timestamp.Format(time.RFC3339))

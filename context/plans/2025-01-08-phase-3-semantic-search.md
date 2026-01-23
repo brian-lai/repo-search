@@ -32,7 +32,7 @@ Add conceptual retrieval when keywords and symbols aren't enough. Powered by loc
 └─────────────────────┬───────────────────────────────────┘
                       │ MCP
 ┌─────────────────────▼───────────────────────────────────┐
-│                   repo-search                            │
+│                   codetect                            │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
 │  │  keyword    │  │   symbol    │  │    semantic     │  │
 │  │  (ripgrep)  │  │  (ctags+db) │  │ (ollama+vector) │  │
@@ -98,7 +98,7 @@ func ChunkFile(path string, symbols []Symbol) ([]Chunk, error)
 
 **File:** `internal/embedding/store.go`
 
-Schema extension to `.repo_search/symbols.db`:
+Schema extension to `.codetect/symbols.db`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS embeddings (
@@ -206,11 +206,11 @@ hybrid_search(query: string, top_k?: number)
 
 ### 7. Indexer Updates
 
-**File:** `cmd/repo-search-index/main.go`
+**File:** `cmd/codetect-index/main.go`
 
 New subcommand:
 ```bash
-repo-search-index embed [--force] [path]
+codetect-index embed [--force] [path]
 ```
 
 - `--force`: Re-embed all chunks even if unchanged
@@ -237,7 +237,7 @@ doctor:
 
 ## Configuration
 
-**File:** `.repo_search/config.json` (optional)
+**File:** `.codetect/config.json` (optional)
 
 ```json
 {
@@ -271,7 +271,7 @@ Defaults are sensible; config file is optional.
 | `internal/embedding/math.go` | NEW: Cosine similarity |
 | `internal/search/hybrid/hybrid.go` | NEW: Combined search |
 | `internal/tools/semantic.go` | NEW: MCP tools |
-| `cmd/repo-search-index/main.go` | UPDATE: Add embed subcommand |
+| `cmd/codetect-index/main.go` | UPDATE: Add embed subcommand |
 | `Makefile` | UPDATE: Add embed target, update doctor |
 | `go.mod` | No new deps (pure Go HTTP + math) |
 
@@ -297,7 +297,7 @@ Alternative: `mxbai-embed-large`
 - Higher quality
 - Slower
 
-User can configure via `.repo_search/config.json`.
+User can configure via `.codetect/config.json`.
 
 ---
 

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // EmbeddingRecord represents a stored embedding
@@ -26,11 +26,12 @@ type EmbeddingRecord struct {
 // EmbeddingStore manages embedding storage in the database.
 // Supports multiple database types via the dialect abstraction.
 type EmbeddingStore struct {
-	db            db.DB
-	dialect       db.Dialect
-	schema        *db.SchemaBuilder
-	vectorDim     int // Vector dimensions (e.g., 768 for nomic-embed-text)
-	useNativeVec  bool // True if using PostgreSQL native vector type
+	db           db.DB
+	dialect      db.Dialect
+	schema       *db.SchemaBuilder
+	vectorDim    int    // Vector dimensions (e.g., 768 for nomic-embed-text)
+	useNativeVec bool   // True if using PostgreSQL native vector type
+	repoRoot     string // Absolute path to repo root for multi-repo isolation
 }
 
 // embeddingColumnsForDialect returns the column definitions for the embeddings table
@@ -51,6 +52,7 @@ func embeddingColumnsForDialect(dialect db.Dialect, vectorDim int) []db.ColumnDe
 
 	return []db.ColumnDef{
 		{Name: "id", Type: db.ColTypeAutoIncrement},
+		{Name: "repo_root", Type: db.ColTypeText, Nullable: false},
 		{Name: "path", Type: db.ColTypeText, Nullable: false},
 		{Name: "start_line", Type: db.ColTypeInteger, Nullable: false},
 		{Name: "end_line", Type: db.ColTypeInteger, Nullable: false},
@@ -63,18 +65,21 @@ func embeddingColumnsForDialect(dialect db.Dialect, vectorDim int) []db.ColumnDe
 
 // NewEmbeddingStore creates a new embedding store using a db.DB adapter.
 // Defaults to SQLite dialect for backward compatibility.
-func NewEmbeddingStore(database db.DB) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithDialect(database, db.GetDialect(db.DatabaseSQLite))
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStore(database db.DB, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithDialect(database, db.GetDialect(db.DatabaseSQLite), repoRoot)
 }
 
 // NewEmbeddingStoreWithDialect creates an embedding store with a specific SQL dialect.
 // Uses default vector dimensions (768) for PostgreSQL.
-func NewEmbeddingStoreWithDialect(database db.DB, dialect db.Dialect) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithOptions(database, dialect, 768)
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreWithDialect(database db.DB, dialect db.Dialect, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithOptions(database, dialect, 768, repoRoot)
 }
 
 // NewEmbeddingStoreWithOptions creates an embedding store with custom vector dimensions.
-func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim int) (*EmbeddingStore, error) {
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim int, repoRoot string) (*EmbeddingStore, error) {
 	useNativeVec := dialect.Name() == "postgres"
 
 	store := &EmbeddingStore{
@@ -83,6 +88,7 @@ func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim 
 		schema:       db.NewSchemaBuilder(database, dialect),
 		vectorDim:    vectorDim,
 		useNativeVec: useNativeVec,
+		repoRoot:     repoRoot,
 	}
 
 	// Initialize schema
@@ -96,13 +102,15 @@ func NewEmbeddingStoreWithOptions(database db.DB, dialect db.Dialect, vectorDim 
 // NewEmbeddingStoreFromSQL creates an embedding store from a raw *sql.DB.
 // This is for backward compatibility with existing code.
 // Prefer NewEmbeddingStore with db.DB for new code.
-func NewEmbeddingStoreFromSQL(sqlDB *sql.DB) (*EmbeddingStore, error) {
-	return NewEmbeddingStore(db.WrapSQL(sqlDB))
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreFromSQL(sqlDB *sql.DB, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStore(db.WrapSQL(sqlDB), repoRoot)
 }
 
 // NewEmbeddingStoreFromConfig creates an embedding store using a db.Config.
-func NewEmbeddingStoreFromConfig(database db.DB, cfg db.Config) (*EmbeddingStore, error) {
-	return NewEmbeddingStoreWithDialect(database, cfg.Dialect())
+// repoRoot is the absolute path to the repository root for multi-repo isolation.
+func NewEmbeddingStoreFromConfig(database db.DB, cfg db.Config, repoRoot string) (*EmbeddingStore, error) {
+	return NewEmbeddingStoreWithDialect(database, cfg.Dialect(), repoRoot)
 }
 
 // initSchema creates the embeddings table if it doesn't exist.
@@ -131,7 +139,15 @@ func (s *EmbeddingStore) initSchema() error {
 		// Add unique constraint via index (not all dialects support inline UNIQUE)
 		// Note: This is simplified; full implementation would need dialect-aware constraints
 
-		// Create indexes
+		// Create unique constraint for upsert ON CONFLICT clause
+		// Must match the conflictColumns in Save/SaveBatch: (repo_root, path, start_line, end_line, model)
+		idxUnique := s.dialect.CreateIndexSQL("embeddings", "idx_embeddings_unique",
+			[]string{"repo_root", "path", "start_line", "end_line", "model"}, true)
+		if _, err := s.db.Exec(idxUnique); err != nil {
+			return fmt.Errorf("creating unique index: %w", err)
+		}
+
+		// Create indexes for common queries
 		idxPath := s.dialect.CreateIndexSQL("embeddings", "idx_embeddings_path", []string{"path"}, false)
 		if _, err := s.db.Exec(idxPath); err != nil {
 			return fmt.Errorf("creating path index: %w", err)
@@ -142,6 +158,12 @@ func (s *EmbeddingStore) initSchema() error {
 			return fmt.Errorf("creating hash index: %w", err)
 		}
 
+		// Composite index for repo-scoped queries
+		idxRepoPath := s.dialect.CreateIndexSQL("embeddings", "idx_embeddings_repo_path", []string{"repo_root", "path"}, false)
+		if _, err := s.db.Exec(idxRepoPath); err != nil {
+			return fmt.Errorf("creating repo_path index: %w", err)
+		}
+
 		return nil
 	}
 
@@ -149,6 +171,7 @@ func (s *EmbeddingStore) initSchema() error {
 	const sqliteSchema = `
 CREATE TABLE IF NOT EXISTS embeddings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_root TEXT NOT NULL,
     path TEXT NOT NULL,
     start_line INTEGER NOT NULL,
     end_line INTEGER NOT NULL,
@@ -156,11 +179,12 @@ CREATE TABLE IF NOT EXISTS embeddings (
     embedding TEXT NOT NULL,
     model TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    UNIQUE(path, start_line, end_line, model)
+    UNIQUE(repo_root, path, start_line, end_line, model)
 );
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_path ON embeddings(path);
 CREATE INDEX IF NOT EXISTS idx_embeddings_hash ON embeddings(content_hash);
+CREATE INDEX IF NOT EXISTS idx_embeddings_repo_path ON embeddings(repo_root, path);
 `
 	if _, err := s.db.Exec(sqliteSchema); err != nil {
 		return fmt.Errorf("creating embedding schema: %w", err)
@@ -177,16 +201,16 @@ func (s *EmbeddingStore) Save(chunk Chunk, embedding []float32, model string) er
 		return fmt.Errorf("marshaling embedding: %w", err)
 	}
 
-	// Use dialect-aware upsert
-	columns := []string{"path", "start_line", "end_line", "content_hash", "embedding", "model", "created_at"}
-	conflictColumns := []string{"path", "start_line", "end_line", "model"}
+	// Use dialect-aware upsert with repo_root for multi-repo isolation
+	columns := []string{"repo_root", "path", "start_line", "end_line", "content_hash", "embedding", "model", "created_at"}
+	conflictColumns := []string{"repo_root", "path", "start_line", "end_line", "model"}
 	updateColumns := []string{"content_hash", "embedding", "created_at"}
 
 	sql := s.dialect.UpsertSQL("embeddings", columns, conflictColumns, updateColumns)
 	sql = s.schema.SubstitutePlaceholders(sql)
 
 	_, err = s.db.Exec(sql,
-		chunk.Path, chunk.StartLine, chunk.EndLine,
+		s.repoRoot, chunk.Path, chunk.StartLine, chunk.EndLine,
 		contentHash, string(embJSON), model, time.Now().Unix())
 
 	return err
@@ -204,9 +228,9 @@ func (s *EmbeddingStore) SaveBatch(chunks []Chunk, embeddings [][]float32, model
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	// Use dialect-aware upsert
-	columns := []string{"path", "start_line", "end_line", "content_hash", "embedding", "model", "created_at"}
-	conflictColumns := []string{"path", "start_line", "end_line", "model"}
+	// Use dialect-aware upsert with repo_root for multi-repo isolation
+	columns := []string{"repo_root", "path", "start_line", "end_line", "content_hash", "embedding", "model", "created_at"}
+	conflictColumns := []string{"repo_root", "path", "start_line", "end_line", "model"}
 	updateColumns := []string{"content_hash", "embedding", "created_at"}
 
 	sql := s.dialect.UpsertSQL("embeddings", columns, conflictColumns, updateColumns)
@@ -227,7 +251,7 @@ func (s *EmbeddingStore) SaveBatch(chunks []Chunk, embeddings [][]float32, model
 		}
 
 		_, err = stmt.Exec(
-			chunk.Path, chunk.StartLine, chunk.EndLine,
+			s.repoRoot, chunk.Path, chunk.StartLine, chunk.EndLine,
 			contentHash, string(embJSON), model, now)
 		if err != nil {
 			return fmt.Errorf("inserting embedding %d: %w", i, err)
@@ -237,14 +261,14 @@ func (s *EmbeddingStore) SaveBatch(chunks []Chunk, embeddings [][]float32, model
 	return tx.Commit()
 }
 
-// GetByPath retrieves all embeddings for a file path
+// GetByPath retrieves all embeddings for a file path within this repo
 func (s *EmbeddingStore) GetByPath(path string) ([]EmbeddingRecord, error) {
 	query := s.schema.SubstitutePlaceholders(`
 		SELECT id, path, start_line, end_line, content_hash, embedding, model, created_at
 		FROM embeddings
-		WHERE path = ?
+		WHERE repo_root = ? AND path = ?
 		ORDER BY start_line`)
-	rows, err := s.db.Query(query, path)
+	rows, err := s.db.Query(query, s.repoRoot, path)
 	if err != nil {
 		return nil, err
 	}
@@ -253,12 +277,14 @@ func (s *EmbeddingStore) GetByPath(path string) ([]EmbeddingRecord, error) {
 	return scanEmbeddingRecords(rows)
 }
 
-// GetAll retrieves all embeddings
+// GetAll retrieves all embeddings within this repo
 func (s *EmbeddingStore) GetAll() ([]EmbeddingRecord, error) {
-	rows, err := s.db.Query(`
+	query := s.schema.SubstitutePlaceholders(`
 		SELECT id, path, start_line, end_line, content_hash, embedding, model, created_at
 		FROM embeddings
+		WHERE repo_root = ?
 		ORDER BY path, start_line`)
+	rows, err := s.db.Query(query, s.repoRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -272,18 +298,18 @@ func (s *EmbeddingStore) GetAllVectors() ([]EmbeddingRecord, error) {
 	return s.GetAll()
 }
 
-// HasEmbedding checks if a chunk already has an embedding with matching content
+// HasEmbedding checks if a chunk already has an embedding with matching content within this repo
 func (s *EmbeddingStore) HasEmbedding(chunk Chunk, model string) (bool, error) {
 	contentHash := hashContent(chunk.Content)
 
 	query := s.schema.SubstitutePlaceholders(`
 		SELECT COUNT(*) FROM embeddings
-		WHERE path = ? AND start_line = ? AND end_line = ?
+		WHERE repo_root = ? AND path = ? AND start_line = ? AND end_line = ?
 		AND content_hash = ? AND model = ?`)
 
 	var count int
 	err := s.db.QueryRow(query,
-		chunk.Path, chunk.StartLine, chunk.EndLine, contentHash, model).Scan(&count)
+		s.repoRoot, chunk.Path, chunk.StartLine, chunk.EndLine, contentHash, model).Scan(&count)
 
 	if err != nil {
 		return false, err
@@ -291,29 +317,32 @@ func (s *EmbeddingStore) HasEmbedding(chunk Chunk, model string) (bool, error) {
 	return count > 0, nil
 }
 
-// DeleteByPath removes all embeddings for a file
+// DeleteByPath removes all embeddings for a file within this repo
 func (s *EmbeddingStore) DeleteByPath(path string) error {
-	query := s.schema.SubstitutePlaceholders("DELETE FROM embeddings WHERE path = ?")
-	_, err := s.db.Exec(query, path)
+	query := s.schema.SubstitutePlaceholders("DELETE FROM embeddings WHERE repo_root = ? AND path = ?")
+	_, err := s.db.Exec(query, s.repoRoot, path)
 	return err
 }
 
-// DeleteAll removes all embeddings
+// DeleteAll removes all embeddings within this repo
 func (s *EmbeddingStore) DeleteAll() error {
-	_, err := s.db.Exec("DELETE FROM embeddings")
+	query := s.schema.SubstitutePlaceholders("DELETE FROM embeddings WHERE repo_root = ?")
+	_, err := s.db.Exec(query, s.repoRoot)
 	return err
 }
 
-// Count returns the number of stored embeddings
+// Count returns the number of stored embeddings within this repo
 func (s *EmbeddingStore) Count() (int, error) {
+	query := s.schema.SubstitutePlaceholders("SELECT COUNT(*) FROM embeddings WHERE repo_root = ?")
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM embeddings").Scan(&count)
+	err := s.db.QueryRow(query, s.repoRoot).Scan(&count)
 	return count, err
 }
 
-// Stats returns embedding statistics
+// Stats returns embedding statistics within this repo
 func (s *EmbeddingStore) Stats() (count int, fileCount int, err error) {
-	err = s.db.QueryRow("SELECT COUNT(*), COUNT(DISTINCT path) FROM embeddings").Scan(&count, &fileCount)
+	query := s.schema.SubstitutePlaceholders("SELECT COUNT(*), COUNT(DISTINCT path) FROM embeddings WHERE repo_root = ?")
+	err = s.db.QueryRow(query, s.repoRoot).Scan(&count, &fileCount)
 	return
 }
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# repo-search installation script
+# codetect installation script
 # Interactive setup for the MCP server
 #
 
@@ -17,7 +17,7 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Config file location
-CONFIG_FILE=".env.repo-search"
+CONFIG_FILE=".env.codetect"
 
 # Detect platform
 OS="$(uname -s)"
@@ -111,7 +111,7 @@ echo -e "${CYAN}${BOLD}"
 cat << 'EOF'
 ╔════════════════════════════════════════════════════════════════════╗
 ║                                                                    ║
-║                        repo-search installer                       ║
+║                        codetect installer                       ║
 ║                                                                    ║
 ║            MCP server for codebase search & navigation             ║
 ║                                                                    ║
@@ -124,11 +124,11 @@ echo ""
 
 # Check if this is a re-install
 REINSTALL=false
-if command -v repo-search &> /dev/null; then
-    EXISTING_VERSION=$(repo-search --version 2>/dev/null || echo "unknown")
-    warn "repo-search is already installed ($EXISTING_VERSION)"
+if command -v codetect &> /dev/null; then
+    EXISTING_VERSION=$(codetect --version 2>/dev/null || echo "unknown")
+    warn "codetect is already installed ($EXISTING_VERSION)"
     echo ""
-    info "This will reinstall/update repo-search."
+    info "This will reinstall/update codetect."
     info "Your existing configuration will be preserved."
     echo ""
     read -p "$(prompt "Continue with installation? [Y/n]")" CONTINUE_INSTALL
@@ -270,7 +270,7 @@ else
         esac
     else
         warn "Skipping symbol indexing setup"
-        info "You can install universal-ctags later and run 'repo-search index'"
+        info "You can install universal-ctags later and run 'codetect index'"
     fi
 fi
 
@@ -449,7 +449,7 @@ if [[ $ENABLE_SEMANTIC =~ ^[Yy] ]]; then
                 else
                     warn "Ollama is not running"
                     info "Start it with: ${BOLD}ollama serve${NC}"
-                    info "Or it will start automatically when you run 'repo-search embed'"
+                    info "Or it will start automatically when you run 'codetect embed'"
                 fi
 
                 # Custom Ollama URL?
@@ -482,7 +482,7 @@ if [[ $ENABLE_SEMANTIC =~ ^[Yy] ]]; then
                 success "LiteLLM is reachable at $LITELLM_URL"
             else
                 warn "Could not connect to LiteLLM at $LITELLM_URL"
-                info "Make sure the server is running before using 'repo-search embed'"
+                info "Make sure the server is running before using 'codetect embed'"
             fi
             ;;
 
@@ -494,7 +494,7 @@ if [[ $ENABLE_SEMANTIC =~ ^[Yy] ]]; then
 else
     EMBEDDING_PROVIDER="off"
     warn "Semantic search will be disabled"
-    info "You can enable it later by setting REPO_SEARCH_EMBEDDING_PROVIDER"
+    info "You can enable it later by setting CODETECT_EMBEDDING_PROVIDER"
 fi
 
 #
@@ -508,7 +508,7 @@ echo "Choose a database backend for storing embeddings:"
 echo ""
 echo -e "  ${GREEN}${BOLD}1)${NC} SQLite (local, simple, recommended for most users)"
 info "Good for: Up to ~10k embeddings, single-user, simple setup"
-info "Storage: Local .repo_search/symbols.db file"
+info "Storage: Local .codetect/symbols.db file"
 echo ""
 echo -e "  ${GREEN}${BOLD}2)${NC} PostgreSQL + pgvector (scalable, recommended for teams)"
 info "Good for: Large codebases, team deployments, millions of embeddings"
@@ -563,67 +563,173 @@ case $DB_CHOICE in
             echo ""
             print_section "Docker PostgreSQL Setup"
 
-            # Check port availability
-            PG_PORT=5432
-            while check_port $PG_PORT; do
-                warn "Port $PG_PORT is already in use"
-                echo ""
-                read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
-                PG_PORT=${ALT_PORT:-5433}
-            done
+            # Check if container exists and its state
+            CONTAINER_EXISTS=false
+            CONTAINER_RUNNING=false
 
-            success "Port $PG_PORT is available"
+            if docker ps -a --format '{{.Names}}' | grep -q '^codetect-postgres$'; then
+                CONTAINER_EXISTS=true
+                if docker ps --format '{{.Names}}' | grep -q '^codetect-postgres$'; then
+                    CONTAINER_RUNNING=true
+                fi
+            fi
 
-            # Set environment for docker-compose
-            export POSTGRES_PORT=$PG_PORT
+            if [[ $CONTAINER_EXISTS == true && $CONTAINER_RUNNING == true ]]; then
+                success "PostgreSQL container already running"
 
-            info "Starting PostgreSQL with pgvector in Docker..."
-            info "Container: repo-search-postgres"
-            info "Port: $PG_PORT"
-            echo ""
+                # Get the port it's running on
+                PG_PORT=$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' codetect-postgres 2>/dev/null || echo "5432")
+                info "Container: codetect-postgres"
+                info "Port: $PG_PORT"
 
-            if docker-compose up -d postgres; then
-                success "PostgreSQL container started successfully"
+                # Verify it's healthy
+                if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                    success "PostgreSQL is healthy"
+                else
+                    warn "Container running but PostgreSQL not ready"
+                    info "Attempting restart..."
+                    docker-compose restart postgres
 
-                # Wait for PostgreSQL to be ready
-                info "Waiting for PostgreSQL to be ready..."
-                for i in {1..30}; do
-                    if docker-compose exec -T postgres pg_isready -U repo_search &>/dev/null; then
-                        success "PostgreSQL is ready"
-                        break
-                    fi
-                    sleep 1
-                done
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+                fi
 
                 # Check if pgvector is enabled
-                if docker-compose exec -T postgres psql -U repo_search -d repo_search -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
                     success "pgvector extension is enabled"
                 else
-                    warn "pgvector extension not enabled automatically"
+                    warn "pgvector extension not enabled"
                     info "Enabling pgvector..."
-                    docker-compose exec -T postgres psql -U repo_search -d repo_search -c "CREATE EXTENSION IF NOT EXISTS vector"
+                    docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
                 fi
 
                 # Set connection details
                 PG_HOST="localhost"
-                PG_USER="repo_search"
-                PG_PASSWORD="repo_search"
-                PG_DBNAME="repo_search"
+                PG_USER="codetect"
+                PG_PASSWORD="codetect"
+                PG_DBNAME="codetect"
                 POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
                 POSTGRES_INSTALLED=true
 
-                echo ""
-                print_box "$GREEN" \
-                    "PostgreSQL is running in Docker" \
-                    "" \
-                    "Start:   docker-compose up -d postgres" \
-                    "Stop:    docker-compose stop postgres" \
-                    "Logs:    docker-compose logs -f postgres" \
-                    "Remove:  docker-compose down -v"
+            elif [[ $CONTAINER_EXISTS == true && $CONTAINER_RUNNING == false ]]; then
+                warn "PostgreSQL container exists but is stopped"
+
+                # Get the port it was configured with
+                PG_PORT=$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' codetect-postgres 2>/dev/null || echo "5432")
+                info "Starting existing container on port $PG_PORT..."
+
+                # Set environment for docker-compose
+                export POSTGRES_PORT=$PG_PORT
+
+                if docker-compose start postgres; then
+                    success "PostgreSQL container started successfully"
+
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+
+                    # Verify pgvector
+                    if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                        success "pgvector extension is enabled"
+                    else
+                        warn "pgvector extension not enabled"
+                        info "Enabling pgvector..."
+                        docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
+                    fi
+
+                    # Set connection details
+                    PG_HOST="localhost"
+                    PG_USER="codetect"
+                    PG_PASSWORD="codetect"
+                    PG_DBNAME="codetect"
+                    POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
+                    POSTGRES_INSTALLED=true
+                else
+                    error "Failed to start PostgreSQL container"
+                    warn "Falling back to SQLite"
+                    DB_TYPE="sqlite"
+                fi
+
             else
-                error "Failed to start PostgreSQL container"
-                warn "Falling back to SQLite"
-                DB_TYPE="sqlite"
+                # Container doesn't exist - create it
+                echo ""
+                info "Creating new PostgreSQL container..."
+
+                # Check port availability
+                PG_PORT=5432
+                while check_port $PG_PORT; do
+                    warn "Port $PG_PORT is already in use"
+                    echo ""
+                    read -p "$(prompt "Enter alternative port [5433]")" ALT_PORT
+                    PG_PORT=${ALT_PORT:-5433}
+                done
+
+                success "Port $PG_PORT is available"
+
+                # Set environment for docker-compose
+                export POSTGRES_PORT=$PG_PORT
+
+                info "Starting PostgreSQL with pgvector in Docker..."
+                info "Container: codetect-postgres"
+                info "Port: $PG_PORT"
+                echo ""
+
+                if docker-compose up -d postgres; then
+                    success "PostgreSQL container started successfully"
+
+                    # Wait for PostgreSQL to be ready
+                    info "Waiting for PostgreSQL to be ready..."
+                    for i in {1..30}; do
+                        if docker-compose exec -T postgres pg_isready -U codetect &>/dev/null; then
+                            success "PostgreSQL is ready"
+                            break
+                        fi
+                        sleep 1
+                    done
+
+                    # Check if pgvector is enabled
+                    if docker-compose exec -T postgres psql -U codetect -d codetect -c "SELECT extname FROM pg_extension WHERE extname='vector'" | grep -q vector; then
+                        success "pgvector extension is enabled"
+                    else
+                        warn "pgvector extension not enabled automatically"
+                        info "Enabling pgvector..."
+                        docker-compose exec -T postgres psql -U codetect -d codetect -c "CREATE EXTENSION IF NOT EXISTS vector"
+                    fi
+
+                    # Set connection details
+                    PG_HOST="localhost"
+                    PG_USER="codetect"
+                    PG_PASSWORD="codetect"
+                    PG_DBNAME="codetect"
+                    POSTGRES_DSN="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}?sslmode=disable"
+                    POSTGRES_INSTALLED=true
+
+                    echo ""
+                    print_box "$GREEN" \
+                        "PostgreSQL is running in Docker" \
+                        "" \
+                        "Start:   docker-compose up -d postgres" \
+                        "Stop:    docker-compose stop postgres" \
+                        "Logs:    docker-compose logs -f postgres" \
+                        "Remove:  docker-compose down -v"
+                else
+                    error "Failed to start PostgreSQL container"
+                    warn "Falling back to SQLite"
+                    DB_TYPE="sqlite"
+                fi
             fi
 
         elif [[ $INSTALL_METHOD == "2" || ($INSTALL_METHOD == "1" && $DOCKER_AVAILABLE == false) ]]; then
@@ -810,8 +916,8 @@ case $DB_CHOICE in
             read -sp "$(prompt "PostgreSQL password (leave empty if not required)")" PG_PASSWORD
             echo ""
 
-            read -p "$(prompt "Database name [repo_search]")" PG_DBNAME
-            PG_DBNAME=${PG_DBNAME:-repo_search}
+            read -p "$(prompt "Database name [codetect]")" PG_DBNAME
+            PG_DBNAME=${PG_DBNAME:-codetect}
 
             # Test connection to postgres database (always exists)
             echo ""
@@ -848,12 +954,17 @@ case $DB_CHOICE in
 
                 # Enable pgvector extension if available
                 if [[ $HAS_PGVECTOR == true ]]; then
-                    info "Enabling pgvector extension..."
-                    if psql "$POSTGRES_DSN" -c "CREATE EXTENSION IF NOT EXISTS vector" &>/dev/null; then
-                        success "pgvector extension enabled"
+                    # Check if extension already enabled
+                    if psql "$POSTGRES_DSN" -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+                        success "pgvector extension already enabled"
                     else
-                        warn "Could not enable pgvector extension"
-                        info "You may need to enable it manually with: CREATE EXTENSION vector;"
+                        info "Enabling pgvector extension..."
+                        if psql "$POSTGRES_DSN" -c "CREATE EXTENSION IF NOT EXISTS vector" &>/dev/null; then
+                            success "pgvector extension enabled"
+                        else
+                            warn "Could not enable pgvector extension"
+                            info "You may need to enable it manually with: CREATE EXTENSION vector;"
+                        fi
                     fi
                 fi
             else
@@ -895,7 +1006,7 @@ esac
 #
 # Step 5: Build and Install
 #
-print_header "Step 5/6: Building repo-search"
+print_header "Step 5/6: Building codetect"
 
 step 1 3 "Building binaries..."
 if make build > /dev/null 2>&1; then
@@ -935,7 +1046,7 @@ if [[ $INSTALL_GLOBAL =~ ^[Yy] ]]; then
                 fi
 
                 echo "" >> "$SHELL_RC"
-                echo "# Added by repo-search installer" >> "$SHELL_RC"
+                echo "# Added by codetect installer" >> "$SHELL_RC"
                 echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$SHELL_RC"
                 success "Added to $SHELL_RC"
                 info "Run: ${BOLD}source $SHELL_RC${NC} to apply changes"
@@ -947,7 +1058,7 @@ if [[ $INSTALL_GLOBAL =~ ^[Yy] ]]; then
     fi
 
     # Generate global config
-    CONFIG_DIR="$HOME/.config/repo-search"
+    CONFIG_DIR="$HOME/.config/codetect"
     mkdir -p "$CONFIG_DIR"
     CONFIG_FILE="$CONFIG_DIR/config.env"
     INSTALLED_GLOBALLY=true
@@ -962,47 +1073,120 @@ fi
 #
 step 3 3 "Generating configuration..."
 
+# Helper function to load existing config
+load_existing_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return 1
+    fi
+
+    if source "$CONFIG_FILE" 2>/dev/null; then
+        return 0
+    else
+        warn "Existing config file appears corrupted"
+        return 1
+    fi
+}
+
+# Check if config exists and load it
+BACKUP_FILE=""
+if [[ -f "$CONFIG_FILE" ]]; then
+    info "Configuration file already exists"
+
+    if load_existing_config; then
+        info "Preserving existing configuration values..."
+
+        # Use existing values if set, otherwise use newly selected values
+        # This allows script to update with new selections while preserving user customizations
+        PREVIOUS_DB_TYPE="${CODETECT_DB_TYPE:-}"
+        DB_TYPE="${CODETECT_DB_TYPE:-$DB_TYPE}"
+        POSTGRES_DSN="${CODETECT_DB_DSN:-$POSTGRES_DSN}"
+        EMBEDDING_PROVIDER="${CODETECT_EMBEDDING_PROVIDER:-$EMBEDDING_PROVIDER}"
+        OLLAMA_URL="${CODETECT_OLLAMA_URL:-$OLLAMA_URL}"
+        EMBEDDING_MODEL="${CODETECT_EMBEDDING_MODEL:-$EMBEDDING_MODEL}"
+        LITELLM_URL="${CODETECT_LITELLM_URL:-$LITELLM_URL}"
+        LITELLM_API_KEY="${CODETECT_LITELLM_API_KEY:-$LITELLM_API_KEY}"
+
+        # Detect database backend change
+        if [[ -n "$PREVIOUS_DB_TYPE" && "$PREVIOUS_DB_TYPE" != "$DB_TYPE" ]]; then
+            echo ""
+            warn "Database backend change detected!"
+            info "Previous: $PREVIOUS_DB_TYPE"
+            info "New:      $DB_TYPE"
+            echo ""
+            warn "Changing database backends requires migration."
+            info "Existing indexes in $PREVIOUS_DB_TYPE will not be accessible."
+            echo ""
+            read -p "$(prompt "Continue with database change? [y/N]")" CONFIRM_DB_CHANGE
+            CONFIRM_DB_CHANGE=${CONFIRM_DB_CHANGE:-N}
+
+            if [[ ! $CONFIRM_DB_CHANGE =~ ^[Yy] ]]; then
+                error "Database change cancelled"
+                info "Re-run installer and select '$PREVIOUS_DB_TYPE' to keep existing setup"
+                exit 1
+            fi
+
+            info "To migrate data later, use: make migrate-to-postgres"
+            echo ""
+        fi
+
+        # Create backup before regenerating
+        BACKUP_FILE="$CONFIG_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+        cp "$CONFIG_FILE" "$BACKUP_FILE"
+        info "Backed up old config to $BACKUP_FILE"
+    else
+        # Corrupted config, back it up and create fresh
+        BACKUP_FILE="$CONFIG_FILE.corrupted.$(date +%Y%m%d-%H%M%S)"
+        mv "$CONFIG_FILE" "$BACKUP_FILE"
+        info "Backed up corrupted config to $BACKUP_FILE"
+        info "Creating fresh configuration..."
+    fi
+fi
+
 cat > "$CONFIG_FILE" << EOF
-# repo-search configuration
+# codetect configuration
 # Auto-generated by installer on $(date)
 
 # Database backend: sqlite or postgres
-export REPO_SEARCH_DB_TYPE="$DB_TYPE"
+export CODETECT_DB_TYPE="$DB_TYPE"
 EOF
 
 if [[ $DB_TYPE == "postgres" && -n "$POSTGRES_DSN" ]]; then
     cat >> "$CONFIG_FILE" << EOF
 
 # PostgreSQL configuration
-export REPO_SEARCH_DB_DSN="$POSTGRES_DSN"
+export CODETECT_DB_DSN="$POSTGRES_DSN"
 EOF
 fi
 
 cat >> "$CONFIG_FILE" << EOF
 
 # Embedding provider: ollama, litellm, or off
-export REPO_SEARCH_EMBEDDING_PROVIDER="$EMBEDDING_PROVIDER"
+export CODETECT_EMBEDDING_PROVIDER="$EMBEDDING_PROVIDER"
 EOF
 
 if [[ $EMBEDDING_PROVIDER == "ollama" ]]; then
     cat >> "$CONFIG_FILE" << EOF
 
 # Ollama configuration
-export REPO_SEARCH_OLLAMA_URL="$OLLAMA_URL"
-export REPO_SEARCH_EMBEDDING_MODEL="$EMBEDDING_MODEL"
-export REPO_SEARCH_VECTOR_DIMENSIONS="$VECTOR_DIMENSIONS"
+export CODETECT_OLLAMA_URL="$OLLAMA_URL"
+export CODETECT_EMBEDDING_MODEL="$EMBEDDING_MODEL"
+export CODETECT_VECTOR_DIMENSIONS="$VECTOR_DIMENSIONS"
 EOF
 elif [[ $EMBEDDING_PROVIDER == "litellm" ]]; then
     cat >> "$CONFIG_FILE" << EOF
 
 # LiteLLM configuration
-export REPO_SEARCH_LITELLM_URL="$LITELLM_URL"
-export REPO_SEARCH_LITELLM_API_KEY="$LITELLM_API_KEY"
-export REPO_SEARCH_EMBEDDING_MODEL="$EMBEDDING_MODEL"
+export CODETECT_LITELLM_URL="$LITELLM_URL"
+export CODETECT_LITELLM_API_KEY="$LITELLM_API_KEY"
+export CODETECT_EMBEDDING_MODEL="$EMBEDDING_MODEL"
 EOF
 fi
 
-success "Configuration saved to $CONFIG_FILE"
+if [[ -n "$BACKUP_FILE" ]]; then
+    success "Configuration updated (previous backed up)"
+else
+    success "Configuration saved to $CONFIG_FILE"
+fi
 
 # Add config sourcing to shell profile
 if [[ $INSTALLED_GLOBALLY == true ]]; then
@@ -1023,15 +1207,15 @@ if [[ $INSTALLED_GLOBALLY == true ]]; then
         echo ""
         echo -e "  ${YELLOW}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
         echo ""
-        read -p "$(prompt "Add repo-search config to shell profile? [Y/n]")" ADD_CONFIG
+        read -p "$(prompt "Add codetect config to shell profile? [Y/n]")" ADD_CONFIG
         ADD_CONFIG=${ADD_CONFIG:-Y}
 
         if [[ $ADD_CONFIG =~ ^[Yy] ]]; then
             echo "" >> "$SHELL_RC"
-            echo "# Source repo-search configuration" >> "$SHELL_RC"
+            echo "# Source codetect configuration" >> "$SHELL_RC"
             echo "$SOURCE_LINE" >> "$SHELL_RC"
             success "Added config sourcing to $SHELL_RC"
-            info "New shells will automatically have repo-search configuration"
+            info "New shells will automatically have codetect configuration"
             info "For current shell, run: ${BOLD}source $SHELL_RC${NC}"
         else
             info "Skipped adding to shell profile"
@@ -1046,9 +1230,9 @@ fi
 print_header "Step 6/6: Initial Setup (Optional)"
 
 if [[ $INSTALLED_GLOBALLY == true ]]; then
-    REPO_SEARCH_CMD="repo-search"
+    CODETECT_CMD="codetect"
 else
-    REPO_SEARCH_CMD="./dist/repo-search"
+    CODETECT_CMD="./dist/codetect"
 fi
 
 if [[ $CTAGS_AVAILABLE == true ]]; then
@@ -1060,9 +1244,9 @@ if [[ $CTAGS_AVAILABLE == true ]]; then
         echo ""
         info "Running symbol indexing..."
         if [[ $INSTALLED_GLOBALLY == true ]]; then
-            repo-search index .
+            codetect index .
         else
-            ./dist/repo-search-index .
+            ./dist/codetect-index .
         fi
         success "Symbol indexing complete"
     fi
@@ -1079,9 +1263,9 @@ if [[ $EMBEDDING_PROVIDER != "off" ]]; then
         # Source the config to use the settings
         source "$CONFIG_FILE"
         if [[ $INSTALLED_GLOBALLY == true ]]; then
-            repo-search embed .
+            codetect embed .
         else
-            ./dist/repo-search-index -embed .
+            ./dist/codetect-index -embed .
         fi
         success "Embedding generation complete"
     fi
@@ -1110,8 +1294,8 @@ if [[ $INSTALLED_GLOBALLY == true ]]; then
     print_box "$GREEN" \
         "${BOLD}Global Installation${NC}" \
         "  Binaries: ~/.local/bin/" \
-        "  Templates: ~/.local/share/repo-search/" \
-        "  Registry: ~/.config/repo-search/registry.json"
+        "  Templates: ~/.local/share/codetect/" \
+        "  Registry: ~/.config/codetect/registry.json"
 fi
 
 print_box "$MAGENTA" \
@@ -1123,18 +1307,18 @@ print_box "$MAGENTA" \
 
 print_box "$BLUE" \
     "${BOLD}Quick Start${NC}" \
-    "  Check setup:        $REPO_SEARCH_CMD doctor" \
-    "  Index project:      $REPO_SEARCH_CMD index <path>" \
-    "  Generate embeddings: $REPO_SEARCH_CMD embed <path>" \
-    "  View statistics:    $REPO_SEARCH_CMD stats" \
-    "  Start daemon:       $REPO_SEARCH_CMD daemon start" \
-    "  Update:             $REPO_SEARCH_CMD update"
+    "  Check setup:        $CODETECT_CMD doctor" \
+    "  Index project:      $CODETECT_CMD index <path>" \
+    "  Generate embeddings: $CODETECT_CMD embed <path>" \
+    "  View statistics:    $CODETECT_CMD stats" \
+    "  Start daemon:       $CODETECT_CMD daemon start" \
+    "  Update:             $CODETECT_CMD update"
 
 print_box "$YELLOW" \
     "${BOLD}Using with Claude Code${NC}" \
     "  1. cd /path/to/your/project" \
-    "  2. $REPO_SEARCH_CMD init" \
-    "  3. $REPO_SEARCH_CMD index" \
+    "  2. $CODETECT_CMD init" \
+    "  3. $CODETECT_CMD index" \
     "  4. claude"
 
 echo -e "${CYAN}Database Backend:${NC} $DB_TYPE"
@@ -1151,9 +1335,9 @@ elif [[ $EMBEDDING_PROVIDER == "litellm" ]]; then
     echo -e "${CYAN}Server URL:${NC} $LITELLM_URL"
 else
     echo -e "${CYAN}Embedding Provider:${NC} ${YELLOW}Disabled${NC}"
-    info "To enable later, set REPO_SEARCH_EMBEDDING_PROVIDER in $CONFIG_FILE"
+    info "To enable later, set CODETECT_EMBEDDING_PROVIDER in $CONFIG_FILE"
 fi
 
 echo ""
-echo -e "${GREEN}${BOLD}Happy coding with repo-search! 🚀${NC}"
+echo -e "${GREEN}${BOLD}Happy coding with codetect! 🚀${NC}"
 echo ""

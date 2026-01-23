@@ -3,19 +3,19 @@ You are my pair engineer. We are building a company-wide “Cursor-like” local
 Context
 - Use the two markdown docs in this repo (in context/data/rough_plan/):
     1) “Company-Wide Claude Code Indexing Plan”
-    2) “Phase 1 – Local Keyword Search MCP (repo-search)”
+    2) “Phase 1 – Local Keyword Search MCP (codetect)”
 - Treat the company plan as the product spec, and the Phase 1 doc as the first implementation milestone.
 
 Goals
 - Engineers should be able to run a single command from any repo: `claude` (or a wrapper that execs `claude`) and get fast repo-aware retrieval.
 - Local-first. No cloud dependencies required. Any semantic embeddings must be optional.
-- Ship as a single Go binary `repo-search` (MCP stdio server) plus a CLI subcommand for indexing.
-- Store per-repo state in `.repo_search/` and respect `.gitignore` + defaults.
+- Ship as a single Go binary `codetect` (MCP stdio server) plus a CLI subcommand for indexing.
+- Store per-repo state in `.codetect/` and respect `.gitignore` + defaults.
 
 Deliverables (execute in this repo)
 PHASE 1 (must complete end-to-end)
-- Create a Go project `repo-search/` with:
-    - cmd/repo-search: MCP stdio server
+- Create a Go project `codetect/` with:
+    - cmd/codetect: MCP stdio server
     - internal/mcp: minimal JSON over stdio transport supporting `tools/list` and `tools/call`
     - internal/search/keyword: implement `search_keyword` backed by ripgrep (use `rg --json` if you can; otherwise basic `--line-number` parsing is acceptable for MVP)
     - internal/search/files: implement `get_file` with optional start/end line slicing

@@ -71,14 +71,14 @@ CREATE TABLE IF NOT EXISTS files (
 
 ### 3. Indexer Update
 
-**File:** `cmd/repo-search-index/main.go`
+**File:** `cmd/codetect-index/main.go`
 
 Replace no-op with:
 1. Check for `universal-ctags` availability
 2. Scan files for mtime changes
 3. Run ctags on changed files
 4. Insert/update SQLite rows
-5. Store index in `.repo_search/symbols.db`
+5. Store index in `.codetect/symbols.db`
 
 ---
 
@@ -125,7 +125,7 @@ command -v ctags >/dev/null && ctags --version | grep -q Universal
 | `internal/search/symbols/ctags.go` | NEW: ctags JSON parsing |
 | `internal/search/symbols/index.go` | UPDATE: Implement Index methods |
 | `internal/tools/symbols.go` | NEW: find_symbol, list_defs_in_file tools |
-| `cmd/repo-search-index/main.go` | UPDATE: Real indexing logic |
+| `cmd/codetect-index/main.go` | UPDATE: Real indexing logic |
 | `Makefile` | UPDATE: doctor checks for ctags |
 | `go.mod` | ADD: github.com/mattn/go-sqlite3 |
 

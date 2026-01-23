@@ -5,6 +5,13 @@ dist/
 *.so
 *.dylib
 
+# Built binaries
+/codetect
+/codetect-index
+/codetect-daemon
+/codetect-eval
+/migrate-to-postgres
+
 # Test binary
 *.test
 
@@ -17,12 +24,11 @@ dist/
 *.swp
 *.swo
 
-# Local index storage
-.repo_search/
-
 # OS files
 .DS_Store
 Thumbs.db
 
 .claude
 .mcp.json
+# codetect index
+.codetect/

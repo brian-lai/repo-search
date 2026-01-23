@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"repo-search/internal/mcp"
-	"repo-search/internal/search/files"
-	"repo-search/internal/search/keyword"
+	"codetect/internal/mcp"
+	"codetect/internal/search/files"
+	"codetect/internal/search/keyword"
 )
 
 // RegisterAll registers all available tools on the MCP server

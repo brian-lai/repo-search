@@ -1,11 +1,11 @@
-// Package daemon provides background indexing for repo-search.
+// Package daemon provides background indexing for codetect.
 // It watches registered projects for file changes and triggers re-indexing.
 package daemon
 
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,7 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"repo-search/internal/registry"
+	"codetect/internal/logging"
+	"codetect/internal/registry"
 
 	"github.com/fsnotify/fsnotify"
 	ignore "github.com/sabhiram/go-gitignore"
@@ -30,7 +31,7 @@ type Daemon struct {
 	debounceMu  sync.Mutex
 	ctx         context.Context
 	cancel      context.CancelFunc
-	logger      *log.Logger
+	logger      *slog.Logger
 	logFile     *os.File
 }
 
@@ -59,7 +60,7 @@ func DefaultConfig() Config {
 		DebounceMs: 500,
 		LogPath:    filepath.Join(configDir, "daemon.log"),
 		PIDPath:    filepath.Join(configDir, "daemon.pid"),
-		SocketPath: fmt.Sprintf("/tmp/repo-search-%d.sock", uid),
+		SocketPath: fmt.Sprintf("/tmp/codetect-%d.sock", uid),
 	}
 }
 
@@ -72,9 +73,9 @@ func New(reg *registry.Registry, cfg Config) (*Daemon, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Setup logging
+	// Setup logging - use file if configured, otherwise use logging package defaults
 	var logFile *os.File
-	var logger *log.Logger
+	var logger *slog.Logger
 	if cfg.LogPath != "" {
 		logFile, err = os.OpenFile(cfg.LogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
@@ -82,9 +83,12 @@ func New(reg *registry.Registry, cfg Config) (*Daemon, error) {
 			cancel()
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
-		logger = log.New(logFile, "", log.LstdFlags)
+		// Create slog logger with file output
+		logCfg := logging.LoadConfigFromEnv("codetect-daemon")
+		logCfg.Output = logFile
+		logger = logging.New(logCfg)
 	} else {
-		logger = log.New(os.Stdout, "", log.LstdFlags)
+		logger = logging.Default("codetect-daemon")
 	}
 
 	return &Daemon{
@@ -101,7 +105,7 @@ func New(reg *registry.Registry, cfg Config) (*Daemon, error) {
 
 // Run starts the daemon and blocks until shutdown
 func (d *Daemon) Run(cfg Config) error {
-	d.logger.Println("Daemon starting...")
+	d.logger.Info("daemon starting")
 
 	// Write PID file
 	if err := d.writePIDFile(cfg.PIDPath); err != nil {
@@ -115,7 +119,7 @@ func (d *Daemon) Run(cfg Config) error {
 
 	// Start watching registered projects
 	if err := d.watchAllProjects(); err != nil {
-		d.logger.Printf("Warning: error watching projects: %v", err)
+		d.logger.Warn("error watching projects", "error", err)
 	}
 
 	// Start IPC server
@@ -133,18 +137,18 @@ func (d *Daemon) Run(cfg Config) error {
 	// Start watcher event handler
 	go d.watcherLoop()
 
-	d.logger.Printf("Daemon started (PID: %d)", os.Getpid())
+	d.logger.Info("daemon started", "pid", os.Getpid())
 
 	// Wait for shutdown signal
 	select {
 	case sig := <-sigChan:
-		d.logger.Printf("Received signal: %v", sig)
+		d.logger.Info("received signal", "signal", sig)
 	case <-d.ctx.Done():
-		d.logger.Println("Context cancelled")
+		d.logger.Info("context cancelled")
 	}
 
 	// Cleanup
-	d.logger.Println("Daemon shutting down...")
+	d.logger.Info("daemon shutting down")
 	d.cancel()
 	d.watcher.Close()
 	if d.logFile != nil {
@@ -173,11 +177,11 @@ func (d *Daemon) Status() DaemonStatus {
 // watchAllProjects adds watches for all registered projects
 func (d *Daemon) watchAllProjects() error {
 	projects := d.registry.GetWatchedProjects()
-	d.logger.Printf("Watching %d projects", len(projects))
+	d.logger.Info("watching projects", "count", len(projects))
 
 	for _, p := range projects {
 		if err := d.watchProject(p.Path); err != nil {
-			d.logger.Printf("Failed to watch %s: %v", p.Path, err)
+			d.logger.Error("failed to watch project", "path", p.Path, "error", err)
 		}
 	}
 	return nil
@@ -214,7 +218,7 @@ func (d *Daemon) watchProject(projectPath string) error {
 
 			if count >= maxWatchesPerProject {
 				if !limitReached {
-					d.logger.Printf("Warning: reached max watches limit (%d) for %s", maxWatchesPerProject, projectPath)
+					d.logger.Warn("reached max watches limit", "limit", maxWatchesPerProject, "project", projectPath)
 					limitReached = true
 				}
 				return filepath.SkipDir
@@ -226,7 +230,7 @@ func (d *Daemon) watchProject(projectPath string) error {
 		}
 		return nil
 	})
-	d.logger.Printf("Added %d watches for %s", count, projectPath)
+	d.logger.Debug("added watches", "count", count, "project", projectPath)
 	return err
 }
 
@@ -262,7 +266,7 @@ func (d *Daemon) watcherLoop() {
 			if !ok {
 				return
 			}
-			d.logger.Printf("Watcher error: %v", err)
+			d.logger.Error("watcher error", "error", err)
 		}
 	}
 }
@@ -301,9 +305,9 @@ func (d *Daemon) handleEvent(event fsnotify.Event, debounceDuration time.Duratio
 
 		select {
 		case d.indexQueue <- project:
-			d.logger.Printf("Queued reindex for: %s", project)
+			d.logger.Debug("queued reindex", "project", project)
 		default:
-			d.logger.Printf("Index queue full, skipping: %s", project)
+			d.logger.Warn("index queue full, skipping", "project", project)
 		}
 	})
 	d.debounceMu.Unlock()
@@ -334,21 +338,21 @@ func (d *Daemon) indexWorker() {
 
 // runIndex executes the indexer for a project
 func (d *Daemon) runIndex(projectPath string) {
-	d.logger.Printf("Indexing: %s", projectPath)
+	d.logger.Info("indexing", "project", projectPath)
 
-	// Run repo-search-index
-	cmd := exec.CommandContext(d.ctx, "repo-search-index", "index", projectPath)
+	// Run codetect-index
+	cmd := exec.CommandContext(d.ctx, "codetect-index", "index", projectPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		d.logger.Printf("Index failed for %s: %v\n%s", projectPath, err, output)
+		d.logger.Error("index failed", "project", projectPath, "error", err, "output", string(output))
 		return
 	}
 
-	d.logger.Printf("Index completed: %s", projectPath)
+	d.logger.Info("index completed", "project", projectPath)
 
 	// Update registry
 	if err := d.registry.SetLastIndexed(projectPath); err != nil {
-		d.logger.Printf("Failed to update registry: %v", err)
+		d.logger.Error("failed to update registry", "error", err)
 	}
 }
 
@@ -423,7 +427,7 @@ func isIgnoredDir(name string) bool {
 
 		// Generated/Cache
 		".cache":       true,
-		".repo_search": true,
+		".codetect": true,
 		".next":        true,
 		".nuxt":        true,
 		".turbo":       true,

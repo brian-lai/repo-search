@@ -140,7 +140,7 @@ Modify `internal/embedding/search.go`:
 
 ## Data Sources
 
-- Existing embeddings in `.repo_search/symbols.db`
+- Existing embeddings in `.codetect/symbols.db`
 - sqlite-vec documentation: https://github.com/asg017/sqlite-vec
 - Current eval results in `evals/results/`
 

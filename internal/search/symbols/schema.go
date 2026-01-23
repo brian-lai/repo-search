@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"codetect/internal/db"
+
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -18,6 +20,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 CREATE TABLE IF NOT EXISTS symbols (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_root TEXT NOT NULL,
     name TEXT NOT NULL,
     kind TEXT NOT NULL,
     path TEXT NOT NULL,
@@ -26,18 +29,21 @@ CREATE TABLE IF NOT EXISTS symbols (
     pattern TEXT,
     scope TEXT,
     signature TEXT,
-    UNIQUE(name, path, line)
+    UNIQUE(repo_root, name, path, line)
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(path);
 CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind);
+CREATE INDEX IF NOT EXISTS idx_symbols_repo_path ON symbols(repo_root, path);
 
 CREATE TABLE IF NOT EXISTS files (
-    path TEXT PRIMARY KEY,
+    repo_root TEXT NOT NULL,
+    path TEXT NOT NULL,
     mtime INTEGER NOT NULL,
     size INTEGER NOT NULL,
-    indexed_at INTEGER NOT NULL
+    indexed_at INTEGER NOT NULL,
+    PRIMARY KEY (repo_root, path)
 );
 `
 
@@ -115,4 +121,100 @@ func ClearSymbols(db *sql.DB, path string) error {
 func ClearAllSymbols(db *sql.DB) error {
 	_, err := db.Exec("DELETE FROM symbols")
 	return err
+}
+
+// initSchemaWithAdapter initializes the database schema using the adapter and dialect.
+// This supports multiple database backends (SQLite, PostgreSQL) by using dialect-aware DDL.
+func initSchemaWithAdapter(adapter db.DB, dialect db.Dialect) error {
+	// Run dialect-specific initialization statements (e.g., WAL mode for SQLite, pgvector extension for Postgres)
+	for _, stmt := range dialect.InitStatements() {
+		if _, err := adapter.Exec(stmt); err != nil {
+			return fmt.Errorf("init statement %q: %w", stmt, err)
+		}
+	}
+
+	// Create schema_version table
+	schemaVersionColumns := []db.ColumnDef{
+		{Name: "version", Type: db.ColTypeInteger, Nullable: false},
+	}
+	if _, err := adapter.Exec(dialect.CreateTableSQL("schema_version", schemaVersionColumns)); err != nil {
+		return fmt.Errorf("creating schema_version table: %w", err)
+	}
+
+	// Check current schema version
+	var version int
+	err := adapter.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&version)
+	needsSchema := err != nil // Either no rows or table was just created
+
+	if needsSchema {
+		// Create symbols table with repo_root for multi-repo isolation
+		symbolColumns := []db.ColumnDef{
+			{Name: "id", Type: db.ColTypeAutoIncrement},
+			{Name: "repo_root", Type: db.ColTypeText, Nullable: false},
+			{Name: "name", Type: db.ColTypeText, Nullable: false},
+			{Name: "kind", Type: db.ColTypeText, Nullable: false},
+			{Name: "path", Type: db.ColTypeText, Nullable: false},
+			{Name: "line", Type: db.ColTypeInteger, Nullable: false},
+			{Name: "language", Type: db.ColTypeText, Nullable: true},
+			{Name: "pattern", Type: db.ColTypeText, Nullable: true},
+			{Name: "scope", Type: db.ColTypeText, Nullable: true},
+			{Name: "signature", Type: db.ColTypeText, Nullable: true},
+		}
+		if _, err := adapter.Exec(dialect.CreateTableSQL("symbols", symbolColumns)); err != nil {
+			return fmt.Errorf("creating symbols table: %w", err)
+		}
+
+		// Create unique constraint on symbols including repo_root
+		uniqueIdxSQL := dialect.CreateIndexSQL("symbols", "idx_symbols_unique", []string{"repo_root", "name", "path", "line"}, true)
+		if _, err := adapter.Exec(uniqueIdxSQL); err != nil {
+			// Ignore error if index already exists (some databases don't support IF NOT EXISTS for unique constraints)
+		}
+
+		// Create indexes on symbols table
+		if _, err := adapter.Exec(dialect.CreateIndexSQL("symbols", "idx_symbols_name", []string{"name"}, false)); err != nil {
+			return fmt.Errorf("creating name index: %w", err)
+		}
+		if _, err := adapter.Exec(dialect.CreateIndexSQL("symbols", "idx_symbols_path", []string{"path"}, false)); err != nil {
+			return fmt.Errorf("creating path index: %w", err)
+		}
+		if _, err := adapter.Exec(dialect.CreateIndexSQL("symbols", "idx_symbols_kind", []string{"kind"}, false)); err != nil {
+			return fmt.Errorf("creating kind index: %w", err)
+		}
+		// Composite index for repo-scoped queries
+		if _, err := adapter.Exec(dialect.CreateIndexSQL("symbols", "idx_symbols_repo_path", []string{"repo_root", "path"}, false)); err != nil {
+			return fmt.Errorf("creating repo_path index: %w", err)
+		}
+
+		// Create files table with repo_root for multi-repo isolation
+		// Use unique index instead of composite PK for dialect compatibility
+		fileColumns := []db.ColumnDef{
+			{Name: "repo_root", Type: db.ColTypeText, Nullable: false},
+			{Name: "path", Type: db.ColTypeText, Nullable: false},
+			{Name: "mtime", Type: db.ColTypeInteger, Nullable: false},
+			{Name: "size", Type: db.ColTypeInteger, Nullable: false},
+			{Name: "indexed_at", Type: db.ColTypeInteger, Nullable: false},
+		}
+		if _, err := adapter.Exec(dialect.CreateTableSQL("files", fileColumns)); err != nil {
+			return fmt.Errorf("creating files table: %w", err)
+		}
+		// Create unique constraint for files (repo_root, path)
+		filesUniqueIdx := dialect.CreateIndexSQL("files", "idx_files_unique", []string{"repo_root", "path"}, true)
+		if _, err := adapter.Exec(filesUniqueIdx); err != nil {
+			// Ignore error if index already exists
+		}
+
+		// Insert schema version
+		insertVersionSQL := fmt.Sprintf("INSERT INTO schema_version (version) VALUES (%s)", dialect.Placeholder(1))
+		if _, err := adapter.Exec(insertVersionSQL, schemaVersion); err != nil {
+			return fmt.Errorf("setting schema version: %w", err)
+		}
+	} else if version < schemaVersion {
+		// Future: add migration logic here
+		updateVersionSQL := fmt.Sprintf("UPDATE schema_version SET version = %s", dialect.Placeholder(1))
+		if _, err := adapter.Exec(updateVersionSQL, schemaVersion); err != nil {
+			return fmt.Errorf("updating schema version: %w", err)
+		}
+	}
+
+	return nil
 }

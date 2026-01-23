@@ -42,7 +42,7 @@ func LoadConfigFromEnv() ProviderConfig {
 	cfg := DefaultProviderConfig()
 
 	// Provider selection
-	if p := os.Getenv("REPO_SEARCH_EMBEDDING_PROVIDER"); p != "" {
+	if p := os.Getenv("CODETECT_EMBEDDING_PROVIDER"); p != "" {
 		switch strings.ToLower(p) {
 		case "ollama":
 			cfg.Provider = ProviderOllama
@@ -57,25 +57,25 @@ func LoadConfigFromEnv() ProviderConfig {
 	}
 
 	// Ollama configuration
-	if url := os.Getenv("REPO_SEARCH_OLLAMA_URL"); url != "" {
+	if url := os.Getenv("CODETECT_OLLAMA_URL"); url != "" {
 		cfg.OllamaURL = url
 	}
 
 	// LiteLLM configuration
-	if url := os.Getenv("REPO_SEARCH_LITELLM_URL"); url != "" {
+	if url := os.Getenv("CODETECT_LITELLM_URL"); url != "" {
 		cfg.LiteLLMURL = url
 	}
-	if key := os.Getenv("REPO_SEARCH_LITELLM_API_KEY"); key != "" {
+	if key := os.Getenv("CODETECT_LITELLM_API_KEY"); key != "" {
 		cfg.LiteLLMKey = key
 	}
 
 	// Model override
-	if model := os.Getenv("REPO_SEARCH_EMBEDDING_MODEL"); model != "" {
+	if model := os.Getenv("CODETECT_EMBEDDING_MODEL"); model != "" {
 		cfg.Model = model
 	}
 
 	// Dimensions override
-	if dim := os.Getenv("REPO_SEARCH_EMBEDDING_DIMENSIONS"); dim != "" {
+	if dim := os.Getenv("CODETECT_EMBEDDING_DIMENSIONS"); dim != "" {
 		if d, err := strconv.Atoi(dim); err == nil && d > 0 {
 			cfg.Dimensions = d
 		}

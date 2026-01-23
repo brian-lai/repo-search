@@ -4,51 +4,74 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"repo-search/internal/db"
+	"codetect/internal/db"
 )
 
 // Index is the database-backed symbol index.
-// Currently uses SQLite but the adapter layer allows future migration to other databases.
+// Uses the adapter pattern to support multiple database backends (SQLite, PostgreSQL).
+// All database operations go through the adapter interface for database portability.
 type Index struct {
-	sqlDB   *sql.DB     // Raw SQL connection (for legacy compatibility)
-	adapter db.DB       // Adapter interface for new code
-	dialect db.Dialect  // SQL dialect for database-specific syntax
+	sqlDB   *sql.DB    // Raw SQL connection (deprecated, for legacy compatibility only)
+	adapter db.DB      // Adapter interface - use this for all database operations
+	dialect db.Dialect // SQL dialect for database-specific syntax (placeholders, etc.)
 	dbPath  string
 	root    string
 }
 
 // NewIndex creates or opens a symbol index at the given path.
-// Uses SQLite by default.
+// Uses SQLite by default. Sets repoRoot to current working directory.
+//
+// Deprecated: Use NewIndexWithConfig for new code. This constructor is
+// maintained for backward compatibility with existing SQLite-based workflows.
 func NewIndex(dbPath string) (*Index, error) {
 	sqlDB, err := OpenDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Default to current working directory for repo root
+	cwd, _ := os.Getwd()
+
 	return &Index{
 		sqlDB:   sqlDB,
 		adapter: db.WrapSQL(sqlDB),
 		dialect: db.GetDialect(db.DatabaseSQLite),
 		dbPath:  dbPath,
+		root:    cwd,
 	}, nil
 }
 
 // NewIndexWithConfig creates a symbol index using the provided configuration.
-// This allows using different database types in the future.
-func NewIndexWithConfig(cfg db.Config) (*Index, error) {
+// repoRoot is the absolute path to the repository root, used for multi-repo isolation.
+// This is the preferred constructor for new code as it supports multiple
+// database backends (SQLite, PostgreSQL) through the adapter pattern.
+//
+// All Index methods use the adapter interface and dialect-aware SQL,
+// enabling seamless database backend switching without code changes.
+func NewIndexWithConfig(cfg db.Config, repoRoot string) (*Index, error) {
 	database, err := db.Open(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	dialect := cfg.Dialect()
+
+	// Initialize schema using dialect-aware DDL
+	if err := initSchemaWithAdapter(database, dialect); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("initializing schema: %w", err)
+	}
+
 	return &Index{
 		adapter: database,
-		dialect: cfg.Dialect(),
+		dialect: dialect,
 		dbPath:  cfg.Path,
+		root:    repoRoot,
 	}, nil
 }
 
@@ -78,7 +101,7 @@ func (idx *Index) Dialect() db.Dialect {
 	return idx.dialect
 }
 
-// FindSymbol searches for symbols by name (supports LIKE patterns)
+// FindSymbol searches for symbols by name (supports LIKE patterns) within this repo
 func (idx *Index) FindSymbol(name string, kind string, limit int) ([]Symbol, error) {
 	if limit <= 0 {
 		limit = 50
@@ -90,31 +113,43 @@ func (idx *Index) FindSymbol(name string, kind string, limit int) ([]Symbol, err
 	// Use LIKE for partial matching
 	pattern := "%" + name + "%"
 
+	// Build query with dialect-aware placeholders, filtering by repo_root
 	if kind != "" {
-		query = `SELECT name, kind, path, line, language, pattern, scope
+		query = fmt.Sprintf(`SELECT name, kind, path, line, language, pattern, scope
 				 FROM symbols
-				 WHERE name LIKE ? AND kind = ?
+				 WHERE repo_root = %s AND name LIKE %s AND kind = %s
 				 ORDER BY
-					CASE WHEN name = ? THEN 0
-						 WHEN name LIKE ? THEN 1
+					CASE WHEN name = %s THEN 0
+						 WHEN name LIKE %s THEN 1
 						 ELSE 2 END,
 					name
-				 LIMIT ?`
-		args = []any{pattern, kind, name, name + "%", limit}
+				 LIMIT %s`,
+			idx.dialect.Placeholder(1),
+			idx.dialect.Placeholder(2),
+			idx.dialect.Placeholder(3),
+			idx.dialect.Placeholder(4),
+			idx.dialect.Placeholder(5),
+			idx.dialect.Placeholder(6))
+		args = []any{idx.root, pattern, kind, name, name + "%", limit}
 	} else {
-		query = `SELECT name, kind, path, line, language, pattern, scope
+		query = fmt.Sprintf(`SELECT name, kind, path, line, language, pattern, scope
 				 FROM symbols
-				 WHERE name LIKE ?
+				 WHERE repo_root = %s AND name LIKE %s
 				 ORDER BY
-					CASE WHEN name = ? THEN 0
-						 WHEN name LIKE ? THEN 1
+					CASE WHEN name = %s THEN 0
+						 WHEN name LIKE %s THEN 1
 						 ELSE 2 END,
 					name
-				 LIMIT ?`
-		args = []any{pattern, name, name + "%", limit}
+				 LIMIT %s`,
+			idx.dialect.Placeholder(1),
+			idx.dialect.Placeholder(2),
+			idx.dialect.Placeholder(3),
+			idx.dialect.Placeholder(4),
+			idx.dialect.Placeholder(5))
+		args = []any{idx.root, pattern, name, name + "%", limit}
 	}
 
-	rows, err := idx.sqlDB.Query(query, args...)
+	rows, err := idx.adapter.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying symbols: %w", err)
 	}
@@ -123,12 +158,12 @@ func (idx *Index) FindSymbol(name string, kind string, limit int) ([]Symbol, err
 	var symbols []Symbol
 	for rows.Next() {
 		var s Symbol
-		var language, pattern, scope sql.NullString
-		if err := rows.Scan(&s.Name, &s.Kind, &s.Path, &s.Line, &language, &pattern, &scope); err != nil {
+		var language, patternStr, scope sql.NullString
+		if err := rows.Scan(&s.Name, &s.Kind, &s.Path, &s.Line, &language, &patternStr, &scope); err != nil {
 			return nil, fmt.Errorf("scanning symbol: %w", err)
 		}
 		s.Language = language.String
-		s.Pattern = pattern.String
+		s.Pattern = patternStr.String
 		s.Scope = scope.String
 		symbols = append(symbols, s)
 	}
@@ -136,14 +171,14 @@ func (idx *Index) FindSymbol(name string, kind string, limit int) ([]Symbol, err
 	return symbols, rows.Err()
 }
 
-// ListDefsInFile returns all symbol definitions in a file
+// ListDefsInFile returns all symbol definitions in a file within this repo
 func (idx *Index) ListDefsInFile(path string) ([]Symbol, error) {
-	query := `SELECT name, kind, path, line, language, pattern, scope
+	query := fmt.Sprintf(`SELECT name, kind, path, line, language, pattern, scope
 			  FROM symbols
-			  WHERE path = ?
-			  ORDER BY line`
+			  WHERE repo_root = %s AND path = %s
+			  ORDER BY line`, idx.dialect.Placeholder(1), idx.dialect.Placeholder(2))
 
-	rows, err := idx.sqlDB.Query(query, path)
+	rows, err := idx.adapter.Query(query, idx.root, path)
 	if err != nil {
 		return nil, fmt.Errorf("querying symbols: %w", err)
 	}
@@ -152,12 +187,12 @@ func (idx *Index) ListDefsInFile(path string) ([]Symbol, error) {
 	var symbols []Symbol
 	for rows.Next() {
 		var s Symbol
-		var language, pattern, scope sql.NullString
-		if err := rows.Scan(&s.Name, &s.Kind, &s.Path, &s.Line, &language, &pattern, &scope); err != nil {
+		var language, patternStr, scope sql.NullString
+		if err := rows.Scan(&s.Name, &s.Kind, &s.Path, &s.Line, &language, &patternStr, &scope); err != nil {
 			return nil, fmt.Errorf("scanning symbol: %w", err)
 		}
 		s.Language = language.String
-		s.Pattern = pattern.String
+		s.Pattern = patternStr.String
 		s.Scope = scope.String
 		symbols = append(symbols, s)
 	}
@@ -189,34 +224,40 @@ func (idx *Index) Update(root string) error {
 		return fmt.Errorf("running ctags: %w", err)
 	}
 
-	// Begin transaction for bulk insert
-	tx, err := idx.sqlDB.Begin()
+	// Begin transaction for bulk insert using the adapter
+	tx, err := idx.adapter.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Clear existing symbols for files being reindexed
+	// Clear existing symbols for files being reindexed within this repo
+	deleteQuery := fmt.Sprintf("DELETE FROM symbols WHERE repo_root = %s AND path = %s",
+		idx.dialect.Placeholder(1), idx.dialect.Placeholder(2))
 	for path := range filesToIndex {
-		if _, err := tx.Exec("DELETE FROM symbols WHERE path = ?", path); err != nil {
+		if _, err := tx.Exec(deleteQuery, idx.root, path); err != nil {
 			return fmt.Errorf("clearing symbols for %s: %w", path, err)
 		}
 	}
 
-	// Prepare insert statement
-	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO symbols
-		(name, kind, path, line, language, pattern, scope, signature)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	// Build dialect-aware upsert statement for symbols with repo_root
+	symbolUpsertSQL := idx.dialect.UpsertSQL(
+		"symbols",
+		[]string{"repo_root", "name", "kind", "path", "line", "language", "pattern", "scope", "signature"},
+		[]string{"repo_root", "name", "path", "line"},
+		[]string{"kind", "language", "pattern", "scope", "signature"},
+	)
+	stmt, err := tx.Prepare(symbolUpsertSQL)
 	if err != nil {
 		return fmt.Errorf("preparing insert: %w", err)
 	}
 	defer stmt.Close()
 
-	// Insert new symbols
+	// Insert new symbols with repo_root
 	for _, entry := range entries {
 		sym := entry.ToSymbol()
 		_, err := stmt.Exec(
-			sym.Name, sym.Kind, sym.Path, sym.Line,
+			idx.root, sym.Name, sym.Kind, sym.Path, sym.Line,
 			nullString(sym.Language), nullString(sym.Pattern),
 			nullString(sym.Scope), nullString(""), // signature empty for now
 		)
@@ -226,16 +267,23 @@ func (idx *Index) Update(root string) error {
 		}
 	}
 
-	// Update file tracking
-	now := time.Now().Unix()
-	fileStmt, err := tx.Prepare(`INSERT OR REPLACE INTO files (path, mtime, size, indexed_at) VALUES (?, ?, ?, ?)`)
+	// Build dialect-aware upsert statement for files with repo_root
+	fileUpsertSQL := idx.dialect.UpsertSQL(
+		"files",
+		[]string{"repo_root", "path", "mtime", "size", "indexed_at"},
+		[]string{"repo_root", "path"},
+		[]string{"mtime", "size", "indexed_at"},
+	)
+	fileStmt, err := tx.Prepare(fileUpsertSQL)
 	if err != nil {
 		return fmt.Errorf("preparing file insert: %w", err)
 	}
 	defer fileStmt.Close()
 
+	// Update file tracking with repo_root
+	now := time.Now().Unix()
 	for path, info := range filesToIndex {
-		if _, err := fileStmt.Exec(path, info.mtime, info.size, now); err != nil {
+		if _, err := fileStmt.Exec(idx.root, path, info.mtime, info.size, now); err != nil {
 			return fmt.Errorf("updating file record for %s: %w", path, err)
 		}
 	}
@@ -247,13 +295,18 @@ func (idx *Index) Update(root string) error {
 	return nil
 }
 
-// FullReindex clears all data and reindexes from scratch
+// FullReindex clears all data for this repo and reindexes from scratch
 func (idx *Index) FullReindex(root string) error {
-	// Clear all existing data
-	if err := ClearAllSymbols(idx.sqlDB); err != nil {
+	// Set root for scoped operations
+	idx.root = root
+
+	// Clear all existing data for this repo using the adapter
+	deleteSymbolsQuery := fmt.Sprintf("DELETE FROM symbols WHERE repo_root = %s", idx.dialect.Placeholder(1))
+	if _, err := idx.adapter.Exec(deleteSymbolsQuery, idx.root); err != nil {
 		return fmt.Errorf("clearing symbols: %w", err)
 	}
-	if _, err := idx.sqlDB.Exec("DELETE FROM files"); err != nil {
+	deleteFilesQuery := fmt.Sprintf("DELETE FROM files WHERE repo_root = %s", idx.dialect.Placeholder(1))
+	if _, err := idx.adapter.Exec(deleteFilesQuery, idx.root); err != nil {
 		return fmt.Errorf("clearing files: %w", err)
 	}
 
@@ -265,11 +318,12 @@ type fileInfo struct {
 	size  int64
 }
 
-// getFilesToIndex returns files that need reindexing (new or modified)
+// getFilesToIndex returns files that need reindexing (new or modified) within this repo
 func (idx *Index) getFilesToIndex(root string) (map[string]fileInfo, error) {
-	// Get currently indexed files
+	// Get currently indexed files for this repo using the adapter
 	indexed := make(map[string]fileInfo)
-	rows, err := idx.sqlDB.Query("SELECT path, mtime, size FROM files")
+	query := fmt.Sprintf("SELECT path, mtime, size FROM files WHERE repo_root = %s", idx.dialect.Placeholder(1))
+	rows, err := idx.adapter.Query(query, idx.root)
 	if err != nil {
 		return nil, err
 	}
@@ -389,12 +443,15 @@ func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
-// Stats returns statistics about the index
+// Stats returns statistics about the index for this repo
 func (idx *Index) Stats() (symbolCount int, fileCount int, err error) {
-	if err := idx.sqlDB.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbolCount); err != nil {
+	// Use the adapter for database-agnostic queries, scoped by repo_root
+	symbolQuery := fmt.Sprintf("SELECT COUNT(*) FROM symbols WHERE repo_root = %s", idx.dialect.Placeholder(1))
+	if err := idx.adapter.QueryRow(symbolQuery, idx.root).Scan(&symbolCount); err != nil {
 		return 0, 0, err
 	}
-	if err := idx.sqlDB.QueryRow("SELECT COUNT(*) FROM files").Scan(&fileCount); err != nil {
+	fileQuery := fmt.Sprintf("SELECT COUNT(*) FROM files WHERE repo_root = %s", idx.dialect.Placeholder(1))
+	if err := idx.adapter.QueryRow(fileQuery, idx.root).Scan(&fileCount); err != nil {
 		return 0, 0, err
 	}
 	return symbolCount, fileCount, nil

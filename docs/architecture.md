@@ -1,10 +1,10 @@
 # Architecture
 
-This document describes the internal architecture of repo-search.
+This document describes the internal architecture of codetect.
 
 ## Overview
 
-repo-search is a Go-based MCP server that provides code search capabilities via stdio transport. It combines multiple search strategies:
+codetect is a Go-based MCP server that provides code search capabilities via stdio transport. It combines multiple search strategies:
 
 1. **Keyword search** - Fast regex matching via ripgrep
 2. **Symbol search** - Structured code navigation via ctags + SQLite
@@ -14,12 +14,12 @@ repo-search is a Go-based MCP server that provides code search capabilities via 
 ## Directory Structure
 
 ```
-repo-search/
+codetect/
 ├── cmd/
-│   ├── repo-search/           # CLI entry point & MCP stdio server
-│   ├── repo-search-index/     # Symbol indexer & embedding generator
-│   ├── repo-search-daemon/    # Background indexing daemon
-│   └── repo-search-eval/      # Evaluation framework for testing
+│   ├── codetect/           # CLI entry point & MCP stdio server
+│   ├── codetect-index/     # Symbol indexer & embedding generator
+│   ├── codetect-daemon/    # Background indexing daemon
+│   └── codetect-eval/      # Evaluation framework for testing
 ├── internal/
 │   ├── mcp/                   # MCP protocol implementation
 │   │   ├── server.go          # JSON-RPC server over stdio
@@ -55,7 +55,7 @@ repo-search/
 │       └── registry.go        # Track indexed projects
 ├── evals/                     # Evaluation test cases and results
 ├── scripts/
-│   └── repo-search-wrapper.sh # CLI wrapper for global install
+│   └── codetect-wrapper.sh # CLI wrapper for global install
 ├── templates/
 │   └── mcp.json               # Template for new projects
 └── docs/                      # Documentation
@@ -285,10 +285,10 @@ Ranking formula:
 
 ## Storage
 
-All indexes are stored in `.repo_search/` at the project root:
+All indexes are stored in `.codetect/` at the project root:
 
 ```
-.repo_search/
+.codetect/
 └── symbols.db        # SQLite database containing:
     ├── symbols       # ctags-derived symbol table
     ├── embeddings    # Vector embeddings for chunks
@@ -299,7 +299,7 @@ This directory should be added to `.gitignore`.
 
 ## Graceful Degradation
 
-repo-search is designed to work with partial dependencies:
+codetect is designed to work with partial dependencies:
 
 | Dependency | If Missing |
 |------------|------------|
@@ -328,16 +328,16 @@ Features:
 - PID file and Unix socket for process management
 
 Commands:
-- `repo-search-daemon start` - Start the daemon
-- `repo-search-daemon stop` - Stop the daemon
-- `repo-search-daemon status` - Show daemon status
+- `codetect-daemon start` - Start the daemon
+- `codetect-daemon stop` - Stop the daemon
+- `codetect-daemon status` - Show daemon status
 
 ## Project Registry (`internal/registry/`)
 
 Central tracking of all indexed projects:
 
 ```
-~/.repo_search/
+~/.codetect/
 └── registry.json    # Global project registry
     ├── projects     # Registered project paths
     ├── settings     # Auto-watch configuration
@@ -351,7 +351,7 @@ Features:
 - Last indexed timestamp tracking
 - Global settings for auto-watch and debounce
 
-## Evaluation Framework (`cmd/repo-search-eval/`, `evals/`)
+## Evaluation Framework (`cmd/codetect-eval/`, `evals/`)
 
 Testing framework for comparing MCP vs non-MCP performance:
 
@@ -362,14 +362,14 @@ Test Cases → Runner → [MCP Search, Direct Search] → Validator → Report
 Features:
 - JSONL-based test case format
 - Categories: search, navigate, understand
-- Per-repo test case storage in `.repo_search/evals/cases/`
+- Per-repo test case storage in `.codetect/evals/cases/`
 - Automated validation of results
 - Performance comparison reports
 
 Commands:
-- `repo-search-eval run` - Run evaluation tests
-- `repo-search-eval report` - Display saved reports
-- `repo-search-eval list` - List available test cases
+- `codetect-eval run` - Run evaluation tests
+- `codetect-eval report` - Display saved reports
+- `codetect-eval list` - List available test cases
 
 ## Future Architecture (Planned)
 

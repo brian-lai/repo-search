@@ -25,13 +25,13 @@ func NewRunner(config EvalConfig) *Runner {
 }
 
 // LoadTestCases loads test cases from JSONL files in the cases directory.
-// It first checks for a repo-specific .repo_search/evals/cases directory,
+// It first checks for a repo-specific .codetect/evals/cases directory,
 // and falls back to the provided casesDir if not found.
 func (r *Runner) LoadTestCases(casesDir string) ([]TestCase, error) {
 	var cases []TestCase
 
 	// Check for repo-specific eval cases first
-	repoEvalDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "cases")
+	repoEvalDir := filepath.Join(r.config.RepoPath, ".codetect", "evals", "cases")
 	if info, err := os.Stat(repoEvalDir); err == nil && info.IsDir() {
 		casesDir = repoEvalDir
 	}
@@ -230,11 +230,11 @@ func (r *Runner) buildClaudeArgs(tc TestCase, mode ExecutionMode) []string {
 	}
 
 	if mode == ModeWithMCP {
-		// Enable repo-search MCP tools
-		mcpConfig := `{"mcpServers":{"repo-search":{"command":"repo-search","args":["mcp"]}}}`
+		// Enable codetect MCP tools
+		mcpConfig := `{"mcpServers":{"codetect":{"command":"codetect","args":["mcp"]}}}`
 		args = append(args,
 			"--mcp-config", mcpConfig,
-			"--allowedTools", "mcp__repo-search__search_keyword,mcp__repo-search__find_symbol,mcp__repo-search__list_defs_in_file,mcp__repo-search__search_semantic,mcp__repo-search__hybrid_search,mcp__repo-search__get_file,Read",
+			"--allowedTools", "mcp__codetect__search_keyword,mcp__codetect__find_symbol,mcp__codetect__list_defs_in_file,mcp__codetect__search_semantic,mcp__codetect__hybrid_search,mcp__codetect__get_file,Read",
 		)
 	} else {
 		// Standard tools only
@@ -250,10 +250,10 @@ func (r *Runner) buildClaudeArgs(tc TestCase, mode ExecutionMode) []string {
 }
 
 // SaveResults writes the raw results to a JSON file.
-// It always uses the repo-specific .repo_search/evals/results directory.
+// It always uses the repo-specific .codetect/evals/results directory.
 func (r *Runner) SaveResults(report *EvalReport) error {
 	// Always use repo-specific results directory to keep results with cases
-	outputDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "results")
+	outputDir := filepath.Join(r.config.RepoPath, ".codetect", "evals", "results")
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
@@ -281,7 +281,7 @@ func contains(slice []string, item string) bool {
 
 // saveLog writes the raw Claude stdout to a log file for later inspection.
 func (r *Runner) saveLog(testCaseID string, mode ExecutionMode, timestamp time.Time, data []byte) error {
-	logsDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "logs")
+	logsDir := filepath.Join(r.config.RepoPath, ".codetect", "evals", "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return fmt.Errorf("creating logs dir: %w", err)
 	}
@@ -307,7 +307,7 @@ type LogEntry struct {
 
 // ListLogs returns all log files for a given repo, sorted by timestamp (newest first).
 func (r *Runner) ListLogs() ([]LogEntry, error) {
-	logsDir := filepath.Join(r.config.RepoPath, ".repo_search", "evals", "logs")
+	logsDir := filepath.Join(r.config.RepoPath, ".codetect", "evals", "logs")
 
 	files, err := filepath.Glob(filepath.Join(logsDir, "*.log"))
 	if err != nil {
@@ -387,7 +387,7 @@ func (r *Runner) ReadLog(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// EnsureGitignore ensures the .repo_search directory is in the target repo's .gitignore.
+// EnsureGitignore ensures the .codetect directory is in the target repo's .gitignore.
 func (r *Runner) EnsureGitignore() error {
 	gitignorePath := filepath.Join(r.config.RepoPath, ".gitignore")
 
@@ -397,23 +397,23 @@ func (r *Runner) EnsureGitignore() error {
 		return fmt.Errorf("reading .gitignore: %w", err)
 	}
 
-	// Check if .repo_search is already in .gitignore
+	// Check if .codetect is already in .gitignore
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == ".repo_search" || trimmed == ".repo_search/" {
+		if trimmed == ".codetect" || trimmed == ".codetect/" {
 			return nil // Already exists
 		}
 	}
 
-	// Append .repo_search to .gitignore
+	// Append .codetect to .gitignore
 	var newContent string
 	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
-		newContent = string(content) + "\n.repo_search/\n"
+		newContent = string(content) + "\n.codetect/\n"
 	} else if len(content) > 0 {
-		newContent = string(content) + ".repo_search/\n"
+		newContent = string(content) + ".codetect/\n"
 	} else {
-		newContent = ".repo_search/\n"
+		newContent = ".codetect/\n"
 	}
 
 	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {

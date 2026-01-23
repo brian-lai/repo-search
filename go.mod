@@ -1,4 +1,4 @@
-module repo-search
+module codetect
 
 go 1.25.5
 

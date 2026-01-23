@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"repo-search/internal/search/symbols"
+	"codetect/internal/search/symbols"
 )
 
 func TestChunkByLines(t *testing.T) {

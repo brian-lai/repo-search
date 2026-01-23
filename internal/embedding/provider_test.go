@@ -21,29 +21,29 @@ func TestDefaultProviderConfig(t *testing.T) {
 
 func TestLoadConfigFromEnv(t *testing.T) {
 	// Save original env and restore after test
-	origProvider := os.Getenv("REPO_SEARCH_EMBEDDING_PROVIDER")
-	origOllamaURL := os.Getenv("REPO_SEARCH_OLLAMA_URL")
-	origLiteLLMURL := os.Getenv("REPO_SEARCH_LITELLM_URL")
-	origLiteLLMKey := os.Getenv("REPO_SEARCH_LITELLM_API_KEY")
-	origModel := os.Getenv("REPO_SEARCH_EMBEDDING_MODEL")
-	origDimensions := os.Getenv("REPO_SEARCH_EMBEDDING_DIMENSIONS")
+	origProvider := os.Getenv("CODETECT_EMBEDDING_PROVIDER")
+	origOllamaURL := os.Getenv("CODETECT_OLLAMA_URL")
+	origLiteLLMURL := os.Getenv("CODETECT_LITELLM_URL")
+	origLiteLLMKey := os.Getenv("CODETECT_LITELLM_API_KEY")
+	origModel := os.Getenv("CODETECT_EMBEDDING_MODEL")
+	origDimensions := os.Getenv("CODETECT_EMBEDDING_DIMENSIONS")
 
 	defer func() {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", origProvider)
-		os.Setenv("REPO_SEARCH_OLLAMA_URL", origOllamaURL)
-		os.Setenv("REPO_SEARCH_LITELLM_URL", origLiteLLMURL)
-		os.Setenv("REPO_SEARCH_LITELLM_API_KEY", origLiteLLMKey)
-		os.Setenv("REPO_SEARCH_EMBEDDING_MODEL", origModel)
-		os.Setenv("REPO_SEARCH_EMBEDDING_DIMENSIONS", origDimensions)
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", origProvider)
+		os.Setenv("CODETECT_OLLAMA_URL", origOllamaURL)
+		os.Setenv("CODETECT_LITELLM_URL", origLiteLLMURL)
+		os.Setenv("CODETECT_LITELLM_API_KEY", origLiteLLMKey)
+		os.Setenv("CODETECT_EMBEDDING_MODEL", origModel)
+		os.Setenv("CODETECT_EMBEDDING_DIMENSIONS", origDimensions)
 	}()
 
 	t.Run("defaults when no env vars set", func(t *testing.T) {
-		os.Unsetenv("REPO_SEARCH_EMBEDDING_PROVIDER")
-		os.Unsetenv("REPO_SEARCH_OLLAMA_URL")
-		os.Unsetenv("REPO_SEARCH_LITELLM_URL")
-		os.Unsetenv("REPO_SEARCH_LITELLM_API_KEY")
-		os.Unsetenv("REPO_SEARCH_EMBEDDING_MODEL")
-		os.Unsetenv("REPO_SEARCH_EMBEDDING_DIMENSIONS")
+		os.Unsetenv("CODETECT_EMBEDDING_PROVIDER")
+		os.Unsetenv("CODETECT_OLLAMA_URL")
+		os.Unsetenv("CODETECT_LITELLM_URL")
+		os.Unsetenv("CODETECT_LITELLM_API_KEY")
+		os.Unsetenv("CODETECT_EMBEDDING_MODEL")
+		os.Unsetenv("CODETECT_EMBEDDING_DIMENSIONS")
 
 		cfg := LoadConfigFromEnv()
 
@@ -53,8 +53,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("reads ollama provider", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", "ollama")
-		os.Setenv("REPO_SEARCH_OLLAMA_URL", "http://custom:11434")
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", "ollama")
+		os.Setenv("CODETECT_OLLAMA_URL", "http://custom:11434")
 
 		cfg := LoadConfigFromEnv()
 
@@ -67,9 +67,9 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("reads litellm provider", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", "litellm")
-		os.Setenv("REPO_SEARCH_LITELLM_URL", "http://litellm:4000")
-		os.Setenv("REPO_SEARCH_LITELLM_API_KEY", "test-key")
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", "litellm")
+		os.Setenv("CODETECT_LITELLM_URL", "http://litellm:4000")
+		os.Setenv("CODETECT_LITELLM_API_KEY", "test-key")
 
 		cfg := LoadConfigFromEnv()
 
@@ -85,7 +85,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("reads off provider", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", "off")
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", "off")
 
 		cfg := LoadConfigFromEnv()
 
@@ -95,8 +95,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("reads model override", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", "ollama")
-		os.Setenv("REPO_SEARCH_EMBEDDING_MODEL", "custom-model")
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", "ollama")
+		os.Setenv("CODETECT_EMBEDDING_MODEL", "custom-model")
 
 		cfg := LoadConfigFromEnv()
 
@@ -106,8 +106,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("reads dimensions override", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_PROVIDER", "litellm")
-		os.Setenv("REPO_SEARCH_EMBEDDING_DIMENSIONS", "1024")
+		os.Setenv("CODETECT_EMBEDDING_PROVIDER", "litellm")
+		os.Setenv("CODETECT_EMBEDDING_DIMENSIONS", "1024")
 
 		cfg := LoadConfigFromEnv()
 
@@ -117,7 +117,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	})
 
 	t.Run("ignores invalid dimensions", func(t *testing.T) {
-		os.Setenv("REPO_SEARCH_EMBEDDING_DIMENSIONS", "invalid")
+		os.Setenv("CODETECT_EMBEDDING_DIMENSIONS", "invalid")
 
 		cfg := LoadConfigFromEnv()
 

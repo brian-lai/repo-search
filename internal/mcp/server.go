@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
+
+	"codetect/internal/logging"
 )
 
 const ProtocolVersion = "2024-11-05"
@@ -20,7 +22,7 @@ type Server struct {
 	version  string
 	tools    []Tool
 	handlers map[string]ToolHandler
-	logger   *log.Logger
+	logger   *slog.Logger
 }
 
 // NewServer creates a new MCP server
@@ -30,7 +32,7 @@ func NewServer(name, version string) *Server {
 		version:  version,
 		tools:    []Tool{},
 		handlers: make(map[string]ToolHandler),
-		logger:   log.New(os.Stderr, "[mcp] ", log.LstdFlags),
+		logger:   logging.Default("mcp"),
 	}
 }
 
@@ -60,7 +62,7 @@ func (s *Server) Run() error {
 		response := s.handleMessage(line)
 		if response != nil {
 			if err := s.writeResponse(response); err != nil {
-				s.logger.Printf("error writing response: %v", err)
+				s.logger.Error("error writing response", "error", err)
 			}
 		}
 	}
@@ -69,7 +71,7 @@ func (s *Server) Run() error {
 func (s *Server) handleMessage(data []byte) *Response {
 	var req Request
 	if err := json.Unmarshal(data, &req); err != nil {
-		s.logger.Printf("parse error: %v", err)
+		s.logger.Error("parse error", "error", err)
 		return &Response{
 			JSONRPC: "2.0",
 			Error: &Error{
@@ -80,7 +82,7 @@ func (s *Server) handleMessage(data []byte) *Response {
 		}
 	}
 
-	s.logger.Printf("received: method=%s id=%v", req.Method, req.ID)
+	s.logger.Debug("received request", "method", req.Method, "id", req.ID)
 
 	switch req.Method {
 	case "initialize":

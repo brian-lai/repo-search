@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"repo-search/internal/config"
-	"repo-search/internal/db"
-	"repo-search/internal/embedding"
-	"repo-search/internal/mcp"
-	"repo-search/internal/search/files"
-	"repo-search/internal/search/hybrid"
+	"codetect/internal/config"
+	"codetect/internal/db"
+	"codetect/internal/embedding"
+	"codetect/internal/mcp"
+	"codetect/internal/search/files"
+	"codetect/internal/search/hybrid"
 )
 
 // RegisterSemanticTools registers the semantic search MCP tools
@@ -188,7 +188,7 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 			// Fallback to SQLite
 			dbConfig.Type = db.DatabaseSQLite
 			cwd, _ := os.Getwd()
-			dbConfig.Path = filepath.Join(cwd, ".repo_search", "symbols.db")
+			dbConfig.Path = filepath.Join(cwd, ".codetect", "symbols.db")
 
 			store, err = openEmbeddingStore(dbConfig)
 			if err != nil {
@@ -211,11 +211,17 @@ func openSemanticSearcher() (*embedding.SemanticSearcher, error) {
 
 // openEmbeddingStore opens an embedding store with the given configuration.
 func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingStore, error) {
+	// Get current working directory as repo root for multi-repo isolation
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getting working directory: %w", err)
+	}
+
 	switch dbConfig.Type {
 	case db.DatabasePostgres:
 		// Open PostgreSQL database
 		if dbConfig.DSN == "" {
-			return nil, fmt.Errorf("PostgreSQL DSN not configured - set REPO_SEARCH_DB_DSN")
+			return nil, fmt.Errorf("PostgreSQL DSN not configured - set CODETECT_DB_DSN")
 		}
 
 		cfg := dbConfig.ToDBConfig()
@@ -224,9 +230,9 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 			return nil, fmt.Errorf("opening PostgreSQL: %w", err)
 		}
 
-		// Create embedding store with PostgreSQL dialect
+		// Create embedding store with PostgreSQL dialect and repoRoot
 		dialect := db.GetDialect(db.DatabasePostgres)
-		store, err := embedding.NewEmbeddingStoreWithOptions(database, dialect, dbConfig.VectorDimensions)
+		store, err := embedding.NewEmbeddingStoreWithOptions(database, dialect, dbConfig.VectorDimensions, cwd)
 		if err != nil {
 			database.Close()
 			return nil, fmt.Errorf("creating PostgreSQL embedding store: %w", err)
@@ -235,15 +241,10 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 		return store, nil
 
 	default: // SQLite
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("getting working directory: %w", err)
-		}
-
 		// Determine database path
 		dbPath := dbConfig.Path
 		if dbPath == "" {
-			dbPath = filepath.Join(cwd, ".repo_search", "symbols.db")
+			dbPath = filepath.Join(cwd, ".codetect", "symbols.db")
 		}
 
 		// For SQLite, check if database exists
@@ -257,8 +258,8 @@ func openEmbeddingStore(dbConfig config.DatabaseConfig) (*embedding.EmbeddingSto
 			return nil, fmt.Errorf("opening SQLite index: %w", err)
 		}
 
-		// Create embedding store from index database
-		store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB())
+		// Create embedding store from index database with repoRoot
+		store, err := embedding.NewEmbeddingStoreFromSQL(idx.DB(), cwd)
 		if err != nil {
 			return nil, fmt.Errorf("creating SQLite embedding store: %w", err)
 		}

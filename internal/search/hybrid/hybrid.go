@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"repo-search/internal/embedding"
-	"repo-search/internal/search/keyword"
+	"codetect/internal/embedding"
+	"codetect/internal/search/keyword"
 )
 
 // Note: ctx is used for semantic search cancellation, not keyword search
