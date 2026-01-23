@@ -65,6 +65,11 @@ func Search(query string, root string, topK int) (*SearchResult, error) {
 		return nil, fmt.Errorf("creating stdout pipe: %w", err)
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stderr pipe: %w", err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting ripgrep: %w", err)
 	}
@@ -83,17 +88,42 @@ func Search(query string, root string, topK int) (*SearchResult, error) {
 		}
 	}
 
+	// Capture stderr for error messages
+	stderrScanner := bufio.NewScanner(stderr)
+	var stderrLines []string
+	for stderrScanner.Scan() {
+		stderrLines = append(stderrLines, stderrScanner.Text())
+	}
+
 	// Wait for command to finish, exit code 1 = no matches (not an error)
 	if err := cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.ExitCode() == 1 {
-				// No matches found - return empty results
+			exitCode := exitErr.ExitCode()
+
+			// Exit code 1 = no matches found (not an error)
+			if exitCode == 1 {
 				return &SearchResult{Results: []Result{}}, nil
 			}
+
+			// Exit code 2 = error (invalid regex, bad flags, etc)
+			if exitCode == 2 {
+				errorMsg := "invalid search pattern or parameters"
+				if len(stderrLines) > 0 {
+					// Use ripgrep's actual error message
+					errorMsg = strings.Join(stderrLines, "; ")
+				}
+				return nil, fmt.Errorf("ripgrep error (exit code 2): %s", errorMsg)
+			}
 		}
+
 		// Check if we got results despite the error
 		if len(results) > 0 {
 			return &SearchResult{Results: results}, nil
+		}
+
+		// Generic error with stderr if available
+		if len(stderrLines) > 0 {
+			return nil, fmt.Errorf("ripgrep error: %w (%s)", err, strings.Join(stderrLines, "; "))
 		}
 		return nil, fmt.Errorf("ripgrep error: %w", err)
 	}
@@ -157,8 +187,26 @@ func SearchBasic(query string, root string, topK int) (*SearchResult, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.ExitCode() == 1 {
+			exitCode := exitErr.ExitCode()
+
+			// Exit code 1 = no matches found (not an error)
+			if exitCode == 1 {
 				return &SearchResult{Results: []Result{}}, nil
+			}
+
+			// Exit code 2 = error (invalid regex, bad flags, etc)
+			if exitCode == 2 {
+				stderr := string(exitErr.Stderr)
+				errorMsg := "invalid search pattern or parameters"
+				if stderr != "" {
+					errorMsg = strings.TrimSpace(stderr)
+				}
+				return nil, fmt.Errorf("ripgrep error (exit code 2): %s", errorMsg)
+			}
+
+			// Other exit codes with stderr
+			if len(exitErr.Stderr) > 0 {
+				return nil, fmt.Errorf("ripgrep error: %w (%s)", err, strings.TrimSpace(string(exitErr.Stderr)))
 			}
 		}
 		return nil, fmt.Errorf("ripgrep error: %w", err)
