@@ -1,105 +1,47 @@
 # Current Work Summary
 
-Executing: PostgreSQL + pgvector Support - Phase 6: Testing & Benchmarking
+Executing: Installer Embedding Model Selection
 
-**Branch:** `para/postgres-pgvector-phase-6`
-**Master Plan:** context/plans/2026-01-14-postgres-pgvector-support.md
-**Phase:** 6 of 7
+**Branch:** `para/installer-embedding-model-selection`
+**Plan:** context/plans/2026-01-22-installer-embedding-model-selection.md
 
 ## To-Do List
 
-### Phase 6: Testing & Benchmarking
-- [x] Create test suite for PostgreSQL adapter
-- [x] Create test suite for pgvector search
-- [x] Benchmark brute-force vs pgvector search
-- [x] Test with large embedding datasets (100k+ vectors)
-- [x] Verify search result consistency across backends
+- [x] Create git branch for installer updates
+- [x] Update context.md with execution tracking
+- [ ] Add model selection menu to install.sh
+- [ ] Update model availability check logic
+- [ ] Add VECTOR_DIMENSIONS to config generation
+- [ ] Test installer with each model option
+- [ ] Create PR with documentation updates
 
 ## Progress Notes
 
-### 2026-01-14 - Phase 6 Completed
+### 2026-01-22 - Execution Started
 
-**Previous Phases:**
-- ✅ Phase 1: PostgreSQL Driver Support (merged)
-- ✅ Phase 2: pgvector Extension Setup (merged)
-- ✅ Phase 3: pgvector VectorDB Implementation (merged)
-- ✅ Phase 4: EmbeddingStore Integration (merged)
-- ✅ Phase 5: SemanticSearcher Configuration (merged)
+**Goal:** Update installer to support recommended embedding models (bge-m3, snowflake-arctic-embed, jina-embeddings-v3)
 
-**Phase 6 Goal:** ✅ Comprehensive testing and performance validation
-
-**Completed:**
-- Created comprehensive benchmark suite comparing brute-force vs pgvector
-- Implemented consistency tests verifying result accuracy across backends
-- Added large dataset tests (10k, 100k vectors)
-- Validated ≥90% overlap in search results
-- Confirmed pgvector delivers expected performance improvements
-- PR #21 created and ready for review
+**Context:**
+- Documentation completed: `docs/embedding-model-comparison.md`
+- Research shows +47-57% performance improvement vs current default
+- Installer currently hard-codes `nomic-embed-text` only
 
 **Technical Approach:**
-- Extend existing test suites with PostgreSQL integration tests
-- Create benchmarks comparing brute-force vs pgvector performance
-- Test with synthetic large datasets (10k, 100k, 1M vectors)
-- Verify search results match across SQLite and PostgreSQL
-- Document performance characteristics and scalability
-
-**Success Criteria:**
-- All tests pass with both SQLite and PostgreSQL
-- pgvector shows 10x+ speedup at 100k+ embeddings
-- Search accuracy ≥ 90% overlap in top-10 results
-- No memory leaks or performance regressions
+- Add interactive model selection menu (5 options: 3 recommended + legacy + custom)
+- Set REPO_SEARCH_VECTOR_DIMENSIONS correctly (1024 for new models, 768 for nomic)
+- Pull selected model automatically via Ollama
+- Maintain backward compatibility with nomic-embed-text option
 
 ---
+
 ```json
 {
   "active_context": [
-    "context/plans/2026-01-14-postgres-pgvector-support.md"
+    "context/plans/2026-01-22-installer-embedding-model-selection.md"
   ],
   "completed_summaries": [],
-  "execution_branch": "para/postgres-pgvector-phase-6",
-  "execution_started": "2026-01-14T21:15:00Z",
-  "phased_execution": {
-    "master_plan": "context/plans/2026-01-14-postgres-pgvector-support.md",
-    "phases": [
-      {
-        "phase": 1,
-        "name": "PostgreSQL Driver Support",
-        "status": "completed",
-        "completed_at": "2026-01-14T18:00:00Z"
-      },
-      {
-        "phase": 2,
-        "name": "pgvector Extension Setup",
-        "status": "completed",
-        "completed_at": "2026-01-14T19:00:00Z"
-      },
-      {
-        "phase": 3,
-        "name": "pgvector VectorDB Implementation",
-        "status": "completed",
-        "completed_at": "2026-01-14T20:00:00Z"
-      },
-      {
-        "phase": 4,
-        "name": "EmbeddingStore Integration",
-        "status": "completed",
-        "completed_at": "2026-01-14T20:30:00Z"
-      },
-      {
-        "phase": 5,
-        "name": "SemanticSearcher Configuration",
-        "status": "completed",
-        "completed_at": "2026-01-14T21:00:00Z"
-      },
-      {
-        "phase": 6,
-        "name": "Testing & Benchmarking",
-        "status": "completed",
-        "completed_at": "2026-01-14T21:30:00Z"
-      }
-    ],
-    "current_phase": 6
-  },
-  "last_updated": "2026-01-14T21:15:00Z"
+  "execution_branch": "para/installer-embedding-model-selection",
+  "execution_started": "2026-01-22T14:15:00Z",
+  "last_updated": "2026-01-22T14:15:00Z"
 }
 ```
