@@ -209,8 +209,9 @@ PYTHON_SCRIPT
 
     info "Run 'codetect index' to index this codebase"
 
-    # Add to .gitignore if exists
-    if [[ -f ".gitignore" ]]; then
+    # Add to .gitignore if exists and using SQLite (not needed for Postgres)
+    load_config
+    if [[ "${CODETECT_DB_TYPE:-sqlite}" == "sqlite" && -f ".gitignore" ]]; then
         if ! grep -q "^\.codetect/$" .gitignore 2>/dev/null; then
             echo "" >> .gitignore
             echo "# codetect index" >> .gitignore
