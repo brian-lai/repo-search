@@ -34,9 +34,9 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - [x] Implement `ListRepoConfigs()` method
 
 ### Phase 4: Model Switch Handling
-- [ ] Add dimension change detection in `codetect-index embed`
-- [ ] Implement `MigrateRepoDimensions()` to move data between tables
-- [ ] Update installer dimension mismatch handling
+- [x] Add dimension change detection in `codetect-index embed`
+- [x] Implement `MigrateRepoDimensions()` to move data between tables
+- [ ] Update installer dimension mismatch handling (deferred - installer already has detection)
 
 ### Phase 5: Cross-Repo Search
 - [ ] Add `SearchOptions` struct with `RepoRoots` filter
@@ -67,6 +67,19 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - Schema initialization creates dimension-specific tables with dimension-specific index names
 
 **All tests pass** (`make test`)
+
+### Phase 4 Complete
+
+**Changes to `internal/embedding/store.go`:**
+- Added `CheckDimensionMismatch()` - detects if repo has existing embeddings with different dimensions
+- Added `DeleteFromDimensionTable()` - deletes repo embeddings from a specific dimension table
+- Added `MigrateRepoDimensions()` - handles full migration (delete old + update config)
+- Added `VectorDimensions()` - returns configured dimensions for the store
+
+**Changes to `cmd/codetect-index/main.go`:**
+- Added dimension mismatch detection after store creation
+- Auto-migrates on dimension change (deletes old, updates config)
+- Updates repo config after successful embedding
 
 ---
 ```json

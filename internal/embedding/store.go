@@ -337,6 +337,74 @@ func (s *EmbeddingStore) ListRepoConfigs() ([]RepoEmbeddingConfig, error) {
 	return configs, rows.Err()
 }
 
+// CheckDimensionMismatch checks if the repository has existing embeddings with different dimensions.
+// Returns (oldDimensions, hasMismatch, error). If hasMismatch is true, caller should handle migration.
+func (s *EmbeddingStore) CheckDimensionMismatch(repoRoot string, newDimensions int) (int, bool, error) {
+	if s.dialect.Name() == "sqlite" {
+		// SQLite doesn't have dimension constraints
+		return 0, false, nil
+	}
+
+	cfg, err := s.GetRepoConfig(repoRoot)
+	if err != nil {
+		return 0, false, fmt.Errorf("getting repo config: %w", err)
+	}
+
+	if cfg == nil {
+		// No existing config, no mismatch
+		return 0, false, nil
+	}
+
+	if cfg.Dimensions != newDimensions {
+		return cfg.Dimensions, true, nil
+	}
+
+	return cfg.Dimensions, false, nil
+}
+
+// DeleteFromDimensionTable deletes all embeddings for a repository from a specific dimension table.
+// Used during dimension migration to clean up old embeddings before re-embedding.
+func (s *EmbeddingStore) DeleteFromDimensionTable(repoRoot string, dimensions int) error {
+	if s.dialect.Name() == "sqlite" {
+		// SQLite uses single table, just delete normally
+		query := s.schema.SubstitutePlaceholders("DELETE FROM embeddings WHERE repo_root = ?")
+		_, err := s.db.Exec(query, repoRoot)
+		return err
+	}
+
+	tableName := tableNameForDimensions(s.dialect, dimensions)
+	query := s.schema.SubstitutePlaceholders(fmt.Sprintf("DELETE FROM %s WHERE repo_root = ?", tableName))
+	_, err := s.db.Exec(query, repoRoot)
+	return err
+}
+
+// MigrateRepoDimensions handles switching a repository from one dimension group to another.
+// This deletes embeddings from the old table and updates the repo config.
+// The caller is responsible for re-embedding into the new dimension table.
+func (s *EmbeddingStore) MigrateRepoDimensions(repoRoot string, oldDimensions, newDimensions int, newModel string) error {
+	if s.dialect.Name() == "sqlite" {
+		// SQLite doesn't need migration (no dimension constraints)
+		return nil
+	}
+
+	// Delete from old dimension table
+	if err := s.DeleteFromDimensionTable(repoRoot, oldDimensions); err != nil {
+		return fmt.Errorf("deleting from old table: %w", err)
+	}
+
+	// Update repo config to new dimensions
+	if err := s.SetRepoConfig(repoRoot, newModel, newDimensions); err != nil {
+		return fmt.Errorf("updating repo config: %w", err)
+	}
+
+	return nil
+}
+
+// VectorDimensions returns the vector dimensions configured for this store.
+func (s *EmbeddingStore) VectorDimensions() int {
+	return s.vectorDim
+}
+
 // Save stores an embedding for a chunk
 func (s *EmbeddingStore) Save(chunk Chunk, embedding []float32, model string) error {
 	contentHash := hashContent(chunk.Content)

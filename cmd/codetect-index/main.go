@@ -241,6 +241,25 @@ func runEmbed(args []string) {
 	}
 	searcher := embedding.NewSemanticSearcher(store, embedder)
 
+	// Check for dimension mismatch (model change)
+	oldDim, hasMismatch, err := store.CheckDimensionMismatch(absPath, dbConfig.VectorDimensions)
+	if err != nil {
+		logger.Warn("checking dimension mismatch", "error", err)
+	}
+	if hasMismatch {
+		logger.Info("dimension change detected",
+			"old_dimensions", oldDim,
+			"new_dimensions", dbConfig.VectorDimensions,
+			"model", cfg.Model)
+
+		// Migrate: delete old embeddings and update config
+		if err := store.MigrateRepoDimensions(absPath, oldDim, dbConfig.VectorDimensions, cfg.Model); err != nil {
+			logger.Error("migrating embeddings failed", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("migrated to new dimension group, re-embedding required")
+	}
+
 	// Clear embeddings if force flag set
 	if *force {
 		logger.Info("clearing existing embeddings")
@@ -370,6 +389,11 @@ func runEmbed(args []string) {
 			"chunks", count,
 			"files", fileCount,
 			"duration", elapsed.Round(time.Millisecond))
+	}
+
+	// Update repo config to track current model and dimensions
+	if err := store.SetRepoConfig(absPath, cfg.Model, dbConfig.VectorDimensions); err != nil {
+		logger.Warn("could not update repo config", "error", err)
 	}
 }
 
