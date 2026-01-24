@@ -197,12 +197,14 @@ func (s *SemanticSearcher) IndexChunks(ctx context.Context, chunks []Chunk, prog
 
 		embs, err := s.embedder.Embed(ctx, []string{chunk.Content})
 		if err != nil {
-			// Skip chunks that fail to embed
+			// Log and skip chunks that fail to embed
+			fmt.Fprintf(os.Stderr, "\n[codetect-index] failed to embed %s:%d-%d: %v\n", chunk.Path, chunk.StartLine, chunk.EndLine, err)
 			skippedCount++
 			continue
 		}
 		if len(embs) == 0 || len(embs[0]) == 0 {
-			// Skip chunks that return empty embeddings
+			// Log and skip chunks that return empty embeddings
+			fmt.Fprintf(os.Stderr, "\n[codetect-index] empty embedding for %s:%d-%d\n", chunk.Path, chunk.StartLine, chunk.EndLine)
 			skippedCount++
 			continue
 		}
@@ -339,6 +341,8 @@ func (s *SemanticSearcher) IndexChunksParallel(ctx context.Context, chunks []Chu
 			if res.err == ctx.Err() {
 				return res.err
 			}
+			// Log the error with chunk details
+			fmt.Fprintf(os.Stderr, "\n[codetect-index] failed to embed %s:%d-%d: %v\n", res.chunk.Path, res.chunk.StartLine, res.chunk.EndLine, res.err)
 			skippedCount++
 			continue
 		}
