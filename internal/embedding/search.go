@@ -360,6 +360,97 @@ func (s *SemanticSearcher) IndexChunksParallel(ctx context.Context, chunks []Chu
 	return nil
 }
 
+// CrossRepoSearchResult extends SemanticResult with repo information
+type CrossRepoSearchResult struct {
+	SemanticResult
+	RepoRoot string `json:"repo_root"`
+}
+
+// CrossRepoSearchResponse is the response from cross-repo search
+type CrossRepoSearchResponse struct {
+	Available bool                   `json:"available"`
+	Results   []CrossRepoSearchResult `json:"results"`
+	Error     string                 `json:"error,omitempty"`
+}
+
+// SearchAcrossRepos performs semantic search across all repositories in the same dimension group.
+// If repoRoots is empty, searches all repos. If specified, filters to those repos only.
+// This is useful for org-wide code search.
+func (s *SemanticSearcher) SearchAcrossRepos(ctx context.Context, query string, limit int, repoRoots []string) (*CrossRepoSearchResponse, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Check availability
+	if !s.Available() {
+		return &CrossRepoSearchResponse{
+			Available: false,
+			Results:   []CrossRepoSearchResult{},
+			Error:     "Embedding provider not available",
+		}, nil
+	}
+
+	// Get all embeddings across repos (from the dimension-specific table)
+	records, err := s.store.GetAllAcrossRepos(repoRoots)
+	if err != nil {
+		return nil, fmt.Errorf("getting embeddings: %w", err)
+	}
+
+	if len(records) == 0 {
+		return &CrossRepoSearchResponse{
+			Available: true,
+			Results:   []CrossRepoSearchResult{},
+			Error:     "No embeddings indexed in this dimension group",
+		}, nil
+	}
+
+	// Embed the query
+	queryEmbeddings, err := s.embedder.Embed(ctx, []string{query})
+	if err != nil {
+		return nil, fmt.Errorf("embedding query: %w", err)
+	}
+	if len(queryEmbeddings) == 0 {
+		return nil, fmt.Errorf("no embedding returned for query")
+	}
+	queryEmbedding := queryEmbeddings[0]
+
+	// Build vector list for search
+	vectors := make([][]float32, len(records))
+	for i, r := range records {
+		vectors[i] = r.Embedding
+	}
+
+	// Find top-k most similar
+	topK := TopKByCosineSimilarity(queryEmbedding, vectors, limit)
+
+	// Build results
+	results := make([]CrossRepoSearchResult, 0, len(topK))
+	for _, item := range topK {
+		if item.Score <= 0 {
+			continue // Skip zero/negative similarity
+		}
+
+		record := records[item.Index]
+		snippet := getSnippet(record.Path, record.StartLine, record.EndLine)
+
+		results = append(results, CrossRepoSearchResult{
+			SemanticResult: SemanticResult{
+				Path:      record.Path,
+				StartLine: record.StartLine,
+				EndLine:   record.EndLine,
+				Snippet:   snippet,
+				Score:     item.Score,
+			},
+			RepoRoot: record.RepoRoot,
+		})
+	}
+
+	return &CrossRepoSearchResponse{
+		Available: true,
+		Results:   results,
+	}, nil
+}
+
 // SearchWithSnippets performs semantic search and includes actual code snippets
 func (s *SemanticSearcher) SearchWithSnippets(ctx context.Context, query string, limit int, snippetFn func(path string, start, end int) string) (*SemanticSearchResult, error) {
 	result, err := s.SearchWithContext(ctx, query, limit)

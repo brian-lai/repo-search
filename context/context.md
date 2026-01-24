@@ -39,9 +39,10 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - [ ] Update installer dimension mismatch handling (deferred - installer already has detection)
 
 ### Phase 5: Cross-Repo Search
-- [ ] Add `SearchOptions` struct with `RepoRoots` filter
-- [ ] Implement `SearchAcrossRepos()` method
-- [ ] Update MCP tool to expose cross-repo search (optional)
+- [x] Add `CrossRepoSearchResult` and `CrossRepoSearchResponse` types
+- [x] Implement `SearchAcrossRepos()` method in SemanticSearcher
+- [x] Implement `GetAllAcrossRepos()` method in EmbeddingStore
+- [ ] Update MCP tool to expose cross-repo search (deferred - future enhancement)
 
 ### Phase 6: SQLite Compatibility
 - [ ] Keep single table for SQLite (conditional in `tableName()`)
@@ -80,6 +81,18 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - Added dimension mismatch detection after store creation
 - Auto-migrates on dimension change (deletes old, updates config)
 - Updates repo config after successful embedding
+
+### Phase 5 Complete
+
+**Changes to `internal/embedding/store.go`:**
+- Added `RepoRoot` field to `EmbeddingRecord` (for cross-repo results)
+- Added `GetAllAcrossRepos(repoRoots)` - queries all repos in dimension group
+- Added `scanEmbeddingRecordsWithRepo()` - scans rows with repo_root column
+
+**Changes to `internal/embedding/search.go`:**
+- Added `CrossRepoSearchResult` type (extends SemanticResult with RepoRoot)
+- Added `CrossRepoSearchResponse` type
+- Added `SearchAcrossRepos()` method for org-wide semantic search
 
 ---
 ```json

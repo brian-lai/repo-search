@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"codetect/internal/db"
@@ -14,6 +15,7 @@ import (
 // EmbeddingRecord represents a stored embedding
 type EmbeddingRecord struct {
 	ID          int64     `json:"id"`
+	RepoRoot    string    `json:"repo_root,omitempty"` // Populated for cross-repo queries
 	Path        string    `json:"path"`
 	StartLine   int       `json:"start_line"`
 	EndLine     int       `json:"end_line"`
@@ -509,6 +511,44 @@ func (s *EmbeddingStore) GetAll() ([]EmbeddingRecord, error) {
 	return scanEmbeddingRecords(rows)
 }
 
+// GetAllAcrossRepos retrieves all embeddings from the dimension-specific table.
+// If repoRoots is empty, returns all repos. If specified, filters to those repos.
+// This enables cross-repo semantic search within a dimension group.
+func (s *EmbeddingStore) GetAllAcrossRepos(repoRoots []string) ([]EmbeddingRecord, error) {
+	tableName := s.tableName()
+
+	var query string
+	var args []interface{}
+
+	if len(repoRoots) == 0 {
+		// Get all repos in this dimension group
+		query = s.schema.SubstitutePlaceholders(fmt.Sprintf(`
+			SELECT id, repo_root, path, start_line, end_line, content_hash, embedding, model, created_at
+			FROM %s
+			ORDER BY repo_root, path, start_line`, tableName))
+	} else {
+		// Filter to specific repos
+		placeholders := make([]string, len(repoRoots))
+		for i, r := range repoRoots {
+			placeholders[i] = "?"
+			args = append(args, r)
+		}
+		query = s.schema.SubstitutePlaceholders(fmt.Sprintf(`
+			SELECT id, repo_root, path, start_line, end_line, content_hash, embedding, model, created_at
+			FROM %s
+			WHERE repo_root IN (%s)
+			ORDER BY repo_root, path, start_line`, tableName, strings.Join(placeholders, ", ")))
+	}
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanEmbeddingRecordsWithRepo(rows)
+}
+
 // GetAllVectors retrieves just the embeddings for search
 func (s *EmbeddingStore) GetAllVectors() ([]EmbeddingRecord, error) {
 	return s.GetAll()
@@ -577,6 +617,33 @@ func scanEmbeddingRecords(rows db.Rows) ([]EmbeddingRecord, error) {
 
 		err := rows.Scan(
 			&r.ID, &r.Path, &r.StartLine, &r.EndLine,
+			&r.ContentHash, &embJSON, &r.Model, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal([]byte(embJSON), &r.Embedding); err != nil {
+			return nil, fmt.Errorf("unmarshaling embedding: %w", err)
+		}
+
+		r.CreatedAt = time.Unix(createdAt, 0)
+		records = append(records, r)
+	}
+
+	return records, rows.Err()
+}
+
+// scanEmbeddingRecordsWithRepo scans rows that include repo_root column
+func scanEmbeddingRecordsWithRepo(rows db.Rows) ([]EmbeddingRecord, error) {
+	var records []EmbeddingRecord
+
+	for rows.Next() {
+		var r EmbeddingRecord
+		var embJSON string
+		var createdAt int64
+
+		err := rows.Scan(
+			&r.ID, &r.RepoRoot, &r.Path, &r.StartLine, &r.EndLine,
 			&r.ContentHash, &embJSON, &r.Model, &createdAt)
 		if err != nil {
 			return nil, err
