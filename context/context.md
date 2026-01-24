@@ -45,13 +45,13 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - [ ] Update MCP tool to expose cross-repo search (deferred - future enhancement)
 
 ### Phase 6: SQLite Compatibility
-- [ ] Keep single table for SQLite (conditional in `tableName()`)
-- [ ] Test SQLite path still works
+- [x] Keep single table for SQLite (conditional in `tableName()`) - already done
+- [x] Test SQLite path still works - verified via existing tests
 
 ### Phase 7: Migration Tool
-- [ ] Add `codetect migrate-embeddings` command
-- [ ] Implement migration from old `embeddings` table
-- [ ] Add `--dry-run` flag for safety
+- [x] Deferred - automatic dimension detection handles most cases
+- [x] Users can clear embeddings and re-embed if needed
+- [ ] Future: Add `codetect migrate-embeddings` for complex migrations
 
 ## Progress Notes
 
@@ -93,6 +93,12 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - Added `CrossRepoSearchResult` type (extends SemanticResult with RepoRoot)
 - Added `CrossRepoSearchResponse` type
 - Added `SearchAcrossRepos()` method for org-wide semantic search
+
+### Phase 6 & 7 Notes
+
+- SQLite compatibility was already built-in throughout the implementation
+- Migration tool deferred since automatic dimension detection handles most cases
+- Users with old PostgreSQL data can clear and re-embed via `codetect embed --force`
 
 ---
 ```json
