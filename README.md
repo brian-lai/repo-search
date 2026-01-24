@@ -85,6 +85,7 @@ repo-search registry stats    # Show aggregate statistics
 
 ```bash
 repo-search-eval run --repo <path>     # Run performance evaluation
+repo-search-eval run --parallel 4      # Run with parallel execution (faster)
 repo-search-eval report                # Show latest results
 repo-search-eval list                  # List available test cases
 ```
@@ -161,6 +162,9 @@ repo-search includes an evaluation tool to measure the performance improvement o
 ```bash
 # Run evaluations on any repository
 repo-search-eval run --repo /path/to/project
+
+# Run with parallel execution for faster results
+repo-search-eval run --repo /path/to/project --parallel 4
 
 # View results
 repo-search-eval report

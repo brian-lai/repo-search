@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -108,6 +109,16 @@ func (r *Runner) RunAll(ctx context.Context, cases []TestCase) (*EvalReport, err
 		Config:    r.config,
 	}
 
+	// If parallel is 1 or less, use sequential execution
+	if r.config.Parallel <= 1 {
+		return r.runAllSequential(ctx, cases, report)
+	}
+
+	return r.runAllParallel(ctx, cases, report)
+}
+
+// runAllSequential executes test cases sequentially (original behavior).
+func (r *Runner) runAllSequential(ctx context.Context, cases []TestCase, report *EvalReport) (*EvalReport, error) {
 	for i, tc := range cases {
 		if r.config.Verbose {
 			fmt.Fprintf(os.Stderr, "[%d/%d] Running: %s\n", i+1, len(cases), tc.ID)
@@ -139,6 +150,90 @@ func (r *Runner) RunAll(ctx context.Context, cases []TestCase) (*EvalReport, err
 	}
 
 	return report, nil
+}
+
+// testJob represents a single test case execution job.
+type testJob struct {
+	index    int
+	testCase TestCase
+	mode     ExecutionMode
+}
+
+// testResult represents the result of a test job.
+type testResult struct {
+	index  int
+	result *RunResult
+}
+
+// runAllParallel executes test cases in parallel using a worker pool.
+func (r *Runner) runAllParallel(ctx context.Context, cases []TestCase, report *EvalReport) (*EvalReport, error) {
+	// Calculate total number of jobs (each test case runs twice: with and without MCP)
+	totalJobs := len(cases) * 2
+
+	// Create job queue and results channel
+	jobs := make(chan testJob, totalJobs)
+	results := make(chan testResult, totalJobs)
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for w := 0; w < r.config.Parallel; w++ {
+		wg.Add(1)
+		go r.worker(ctx, &wg, jobs, results)
+	}
+
+	// Enqueue all jobs
+	jobIndex := 0
+	for _, tc := range cases {
+		jobs <- testJob{index: jobIndex, testCase: tc, mode: ModeWithMCP}
+		jobIndex++
+		jobs <- testJob{index: jobIndex, testCase: tc, mode: ModeWithoutMCP}
+		jobIndex++
+	}
+	close(jobs)
+
+	// Collect results in background
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Gather all results
+	allResults := make([]*RunResult, totalJobs)
+	for res := range results {
+		allResults[res.index] = res.result
+	}
+
+	// Add to report in order
+	for _, res := range allResults {
+		if res != nil {
+			report.RawResults = append(report.RawResults, *res)
+		}
+	}
+
+	return report, nil
+}
+
+// worker processes test jobs from the jobs channel.
+func (r *Runner) worker(ctx context.Context, wg *sync.WaitGroup, jobs <-chan testJob, results chan<- testResult) {
+	defer wg.Done()
+
+	for job := range jobs {
+		if r.config.Verbose {
+			fmt.Fprintf(os.Stderr, "Running: %s (%s)\n", job.testCase.ID, job.mode)
+		}
+
+		result, err := r.runTestCase(ctx, job.testCase, job.mode)
+		if err != nil {
+			result = &RunResult{
+				TestCaseID: job.testCase.ID,
+				Mode:       job.mode,
+				Success:    false,
+				Error:      err.Error(),
+			}
+		}
+
+		results <- testResult{index: job.index, result: result}
+	}
 }
 
 // runTestCase executes a single test case in the specified mode.

@@ -47,6 +47,7 @@ func runEval(args []string) {
 	categories := fs.String("category", "", "Filter by category (comma-separated: search,navigate,understand)")
 	timeout := fs.Duration("timeout", 5*time.Minute, "Timeout per test case")
 	verbose := fs.Bool("verbose", false, "Verbose output")
+	parallel := fs.Int("parallel", 1, "Number of test cases to run in parallel")
 	fs.Parse(args)
 
 	config := evals.DefaultConfig()
@@ -54,6 +55,7 @@ func runEval(args []string) {
 	config.OutputDir = *outputDir
 	config.Timeout = *timeout
 	config.Verbose = *verbose
+	config.Parallel = *parallel
 
 	if *categories != "" {
 		config.Categories = strings.Split(*categories, ",")
@@ -232,6 +234,7 @@ Run Options:
   --output <dir>     Output directory (default: evals/results)
   --category <cat>   Filter by category (search,navigate,understand)
   --timeout <dur>    Timeout per test (default: 5m)
+  --parallel <n>     Number of test cases to run in parallel (default: 1)
   --verbose          Verbose output
 
 Report Options:
@@ -243,6 +246,9 @@ Examples:
 
   # Run only search tests on a specific repo
   repo-search-eval run --repo /path/to/project --category search
+
+  # Run with 4 parallel workers for faster execution
+  repo-search-eval run --parallel 4
 
   # View the most recent report
   repo-search-eval report

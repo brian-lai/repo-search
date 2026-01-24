@@ -28,7 +28,8 @@ _Update this section as you complete items._
 ```json
 {
   "active_context": [
-    "context/plans/2025-01-08-phase-3-semantic-search.md"
+    "context/plans/2025-01-08-phase-3-semantic-search.md",
+    "context/plans/2026-01-11-parallelize-eval-execution.md"
   ],
   "completed_summaries": [],
   "execution_branch": "para/repo-search-phase-3",
@@ -54,6 +55,6 @@ _Update this section as you complete items._
     ],
     "current_phase": 3
   },
-  "last_updated": "2025-01-08T02:00:00Z"
+  "last_updated": "2026-01-11T00:00:00Z"
 }
 ```

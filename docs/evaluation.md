@@ -38,6 +38,7 @@ repo-search-eval run [options]
 - `--output <dir>` - Output directory for results (default: evals/results)
 - `--category <cat>` - Filter by category (search, navigate, understand)
 - `--timeout <dur>` - Timeout per test case (default: 5m)
+- `--parallel <n>` - Number of test cases to run in parallel (default: 1)
 - `--verbose` - Verbose output
 
 **Examples:**
@@ -51,6 +52,9 @@ repo-search-eval run --repo /path/to/project --category search
 
 # Run with custom timeout and verbose output
 repo-search-eval run --repo /path/to/project --timeout 10m --verbose
+
+# Run with 4 parallel workers for faster execution
+repo-search-eval run --repo /path/to/project --parallel 4
 ```
 
 ### report
@@ -304,6 +308,35 @@ Improvements:
 **Lower latency** means faster responses, improving developer productivity.
 
 **Higher success rate** means fewer failed attempts and timeout errors.
+
+## Performance Tips
+
+### Parallel Execution
+
+By default, eval test cases run sequentially. You can significantly reduce evaluation time by running multiple test cases in parallel:
+
+```bash
+# Run with 4 parallel workers
+repo-search-eval run --parallel 4
+
+# Run with 8 parallel workers for faster execution
+repo-search-eval run --parallel 8
+```
+
+**Recommendations:**
+- For most machines, `--parallel 4` to `--parallel 8` provides a good balance
+- Higher parallelism may cause resource contention (CPU, memory, API rate limits)
+- Each test case spawns a Claude process, so monitor system resources
+- Parallel execution maintains the same accuracy as sequential execution
+
+**Performance Impact:**
+
+With parallel execution, you can expect significant time savings:
+- 10 test cases at 3 min each = 30 minutes (sequential)
+- With `--parallel 4`: ~7-8 minutes (75% reduction)
+- With `--parallel 8`: ~4-5 minutes (85% reduction)
+
+The actual speedup depends on your system resources and API response times.
 
 ## Best Practices
 
