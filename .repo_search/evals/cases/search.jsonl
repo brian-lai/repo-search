@@ -1,0 +1,2 @@
+{"id":"test-001","category":"search","description":"Find evaluation code","prompt":"Find all evaluation runner code","ground_truth":{"files":["evals/runner.go"],"symbols":["Runner","RunAll"]},"difficulty":"easy"}
+{"id":"test-002","category":"search","description":"Find MCP tools","prompt":"Find where MCP tools are registered","ground_truth":{"files":["internal/tools/","cmd/repo-search-mcp/"]},"difficulty":"medium"}
