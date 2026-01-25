@@ -26,15 +26,38 @@ Replace ctags with ast-grep as the primary symbol indexer for supported language
 
 ## Progress Notes
 
-### 2026-01-24 - Execution Started
+### 2026-01-24 - Execution Completed ✅
 
-Starting implementation of ast-grep hybrid indexer. Will create ast-grep wrapper first, then integrate with existing index logic.
+**Implementation Summary:**
+
+1. **ast-grep wrapper** (`internal/search/symbols/astgrep.go`):
+   - Pattern definitions for 13 languages (Go, TS, JS, Python, Rust, Java, C/C++, Ruby, PHP, C#, Kotlin, Swift)
+   - JSON parsing and Symbol conversion
+   - Language detection from file extensions
+   - Deduplication logic
+
+2. **Hybrid indexer** (`internal/search/symbols/index.go`):
+   - Groups files by language
+   - Tries ast-grep first for supported languages
+   - Falls back to ctags for unsupported files or failures
+   - Batch symbol insertion (500 at a time) - reduces DB round-trips by ~100x
+
+3. **Configuration** (`internal/config/index.go`):
+   - `CODETECT_INDEX_BACKEND` environment variable
+   - Three modes: `auto` (default), `ast-grep`, `ctags`
+   - Graceful degradation when tools unavailable
+
+4. **Testing**:
+   - Unit tests for all ast-grep wrapper functions
+   - Integration test: 29 symbols indexed across 3 files
+   - Benchmarks for performance comparison
 
 **Key design decisions:**
-- ast-grep for top 12+ languages (Go, TS, JS, Python, Rust, Java, C/C++, Ruby, PHP, C#, Kotlin, Swift)
+- ast-grep for top 13 languages (Go, TS, JS, Python, Rust, Java, C/C++, Ruby, PHP, C#, Kotlin, Swift)
 - Graceful fallback to universal-ctags for unsupported languages
-- Batch insertions to improve performance
+- Batch insertions to improve performance (500 symbols/batch)
 - Configuration option for backend selection
+- Works with ast-grep only, ctags only, or both
 
 ---
 
