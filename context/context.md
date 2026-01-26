@@ -101,10 +101,12 @@ Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config 
 - Users with old PostgreSQL data can clear and re-embed via `codetect embed --force`
 
 ---
+
 ```json
 {
   "active_context": ["context/plans/2026-01-24-dimension-grouped-embeddings.md"],
   "completed_summaries": [
+    "context/plans/2026-01-24-ast-grep-hybrid-indexer.md",
     "context/plans/2026-01-24-eval-model-selection.md",
     "context/plans/2026-01-23-fix-config-preservation-overwriting-selections.md",
     "context/plans/2026-01-22-installer-config-preservation-and-reembedding.md",

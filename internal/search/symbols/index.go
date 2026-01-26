@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"codetect/internal/config"
 	"codetect/internal/db"
 )
 
@@ -16,11 +17,12 @@ import (
 // Uses the adapter pattern to support multiple database backends (SQLite, PostgreSQL).
 // All database operations go through the adapter interface for database portability.
 type Index struct {
-	sqlDB   *sql.DB    // Raw SQL connection (deprecated, for legacy compatibility only)
-	adapter db.DB      // Adapter interface - use this for all database operations
-	dialect db.Dialect // SQL dialect for database-specific syntax (placeholders, etc.)
-	dbPath  string
-	root    string
+	sqlDB      *sql.DB           // Raw SQL connection (deprecated, for legacy compatibility only)
+	adapter    db.DB             // Adapter interface - use this for all database operations
+	dialect    db.Dialect        // SQL dialect for database-specific syntax (placeholders, etc.)
+	dbPath     string
+	root       string
+	indexCfg   config.IndexConfig // Indexing backend configuration
 }
 
 // NewIndex creates or opens a symbol index at the given path.
@@ -38,11 +40,12 @@ func NewIndex(dbPath string) (*Index, error) {
 	cwd, _ := os.Getwd()
 
 	return &Index{
-		sqlDB:   sqlDB,
-		adapter: db.WrapSQL(sqlDB),
-		dialect: db.GetDialect(db.DatabaseSQLite),
-		dbPath:  dbPath,
-		root:    cwd,
+		sqlDB:    sqlDB,
+		adapter:  db.WrapSQL(sqlDB),
+		dialect:  db.GetDialect(db.DatabaseSQLite),
+		dbPath:   dbPath,
+		root:     cwd,
+		indexCfg: config.LoadIndexConfigFromEnv(),
 	}, nil
 }
 
@@ -68,10 +71,11 @@ func NewIndexWithConfig(cfg db.Config, repoRoot string) (*Index, error) {
 	}
 
 	return &Index{
-		adapter: database,
-		dialect: dialect,
-		dbPath:  cfg.Path,
-		root:    repoRoot,
+		adapter:  database,
+		dialect:  dialect,
+		dbPath:   cfg.Path,
+		root:     repoRoot,
+		indexCfg: config.LoadIndexConfigFromEnv(),
 	}, nil
 }
 
@@ -202,10 +206,6 @@ func (idx *Index) ListDefsInFile(path string) ([]Symbol, error) {
 
 // Update re-indexes files that have changed since last index
 func (idx *Index) Update(root string) error {
-	if !CtagsAvailable() {
-		return fmt.Errorf("universal-ctags not available")
-	}
-
 	idx.root = root
 
 	// Get list of files that need reindexing
@@ -218,13 +218,79 @@ func (idx *Index) Update(root string) error {
 		return nil // Nothing to do
 	}
 
-	// Run ctags on all files
-	entries, err := RunCtags(root, nil) // Recursive scan
-	if err != nil {
-		return fmt.Errorf("running ctags: %w", err)
+	// Collect all symbols based on configured backend
+	var allSymbols []Symbol
+
+	// Decide which indexer(s) to use based on configuration
+	useAstGrep := idx.indexCfg.UseAstGrep() && AstGrepAvailable()
+	useCtags := idx.indexCfg.UseCtags() && CtagsAvailable()
+
+	// If ast-grep is required but not available, error
+	if idx.indexCfg.RequireAstGrep() && !AstGrepAvailable() {
+		return fmt.Errorf("ast-grep backend required but not available")
 	}
 
-	// Begin transaction for bulk insert using the adapter
+	var unsupportedFiles []string
+
+	// Try ast-grep for supported languages (if configured)
+	if useAstGrep {
+		filesByLang := make(map[string][]string)
+
+		for path := range filesToIndex {
+			lang := LanguageFromExtension(path)
+			if lang != "" {
+				filesByLang[lang] = append(filesByLang[lang], filepath.Join(root, path))
+			} else {
+				unsupportedFiles = append(unsupportedFiles, path)
+			}
+		}
+
+		// Run ast-grep for each language
+		for lang, files := range filesByLang {
+			symbols, err := RunAstGrep(root, files, lang)
+			if err != nil {
+				// If ast-grep fails and ctags is allowed, fall back
+				if useCtags {
+					unsupportedFiles = append(unsupportedFiles, files...)
+					continue
+				}
+				return fmt.Errorf("ast-grep failed for %s: %w", lang, err)
+			}
+			allSymbols = append(allSymbols, symbols...)
+		}
+	} else {
+		// Not using ast-grep, mark all files as unsupported
+		for path := range filesToIndex {
+			unsupportedFiles = append(unsupportedFiles, path)
+		}
+	}
+
+	// Run ctags for unsupported files (if configured and available)
+	if len(unsupportedFiles) > 0 && useCtags {
+		// Convert relative paths to absolute for ctags
+		var absUnsupportedFiles []string
+		for _, path := range unsupportedFiles {
+			if filepath.IsAbs(path) {
+				absUnsupportedFiles = append(absUnsupportedFiles, path)
+			} else {
+				absUnsupportedFiles = append(absUnsupportedFiles, filepath.Join(root, path))
+			}
+		}
+
+		entries, err := RunCtags(root, absUnsupportedFiles)
+		if err != nil {
+			// Only error if both indexers failed and we have no symbols
+			if len(allSymbols) == 0 {
+				return fmt.Errorf("running ctags: %w", err)
+			}
+		} else {
+			for _, entry := range entries {
+				allSymbols = append(allSymbols, entry.ToSymbol())
+			}
+		}
+	}
+
+	// Begin transaction for bulk insert
 	tx, err := idx.adapter.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -240,31 +306,9 @@ func (idx *Index) Update(root string) error {
 		}
 	}
 
-	// Build dialect-aware upsert statement for symbols with repo_root
-	symbolUpsertSQL := idx.dialect.UpsertSQL(
-		"symbols",
-		[]string{"repo_root", "name", "kind", "path", "line", "language", "pattern", "scope", "signature"},
-		[]string{"repo_root", "name", "path", "line"},
-		[]string{"kind", "language", "pattern", "scope", "signature"},
-	)
-	stmt, err := tx.Prepare(symbolUpsertSQL)
-	if err != nil {
-		return fmt.Errorf("preparing insert: %w", err)
-	}
-	defer stmt.Close()
-
-	// Insert new symbols with repo_root
-	for _, entry := range entries {
-		sym := entry.ToSymbol()
-		_, err := stmt.Exec(
-			idx.root, sym.Name, sym.Kind, sym.Path, sym.Line,
-			nullString(sym.Language), nullString(sym.Pattern),
-			nullString(sym.Scope), nullString(""), // signature empty for now
-		)
-		if err != nil {
-			// Log but continue on duplicate/constraint errors
-			continue
-		}
+	// Batch insert symbols (500 at a time for performance)
+	if err := idx.batchInsertSymbols(tx, allSymbols, 500); err != nil {
+		return fmt.Errorf("inserting symbols: %w", err)
 	}
 
 	// Build dialect-aware upsert statement for files with repo_root
@@ -290,6 +334,48 @@ func (idx *Index) Update(root string) error {
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	return nil
+}
+
+// batchInsertSymbols inserts symbols in batches to reduce DB round-trips
+func (idx *Index) batchInsertSymbols(tx db.Tx, symbols []Symbol, batchSize int) error {
+	if len(symbols) == 0 {
+		return nil
+	}
+
+	// Build dialect-aware upsert statement
+	symbolUpsertSQL := idx.dialect.UpsertSQL(
+		"symbols",
+		[]string{"repo_root", "name", "kind", "path", "line", "language", "pattern", "scope", "signature"},
+		[]string{"repo_root", "name", "path", "line"},
+		[]string{"kind", "language", "pattern", "scope", "signature"},
+	)
+	stmt, err := tx.Prepare(symbolUpsertSQL)
+	if err != nil {
+		return fmt.Errorf("preparing insert: %w", err)
+	}
+	defer stmt.Close()
+
+	// Insert in batches
+	for i := 0; i < len(symbols); i += batchSize {
+		end := i + batchSize
+		if end > len(symbols) {
+			end = len(symbols)
+		}
+
+		for _, sym := range symbols[i:end] {
+			_, err := stmt.Exec(
+				idx.root, sym.Name, sym.Kind, sym.Path, sym.Line,
+				nullString(sym.Language), nullString(sym.Pattern),
+				nullString(sym.Scope), nullString(""), // signature empty for now
+			)
+			if err != nil {
+				// Log but continue on duplicate/constraint errors
+				continue
+			}
+		}
 	}
 
 	return nil
