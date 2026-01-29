@@ -21,7 +21,7 @@ v2 core architecture merged. Planning remaining work for production readiness.
 | 4 | HNSW Vector Indexing | ✅ Complete | #38 |
 | 5 | Two-Stage Retrieval + Reranking | ✅ Complete | #38 |
 | 6 | Incremental Pipeline Integration | ✅ Complete | #38 |
-| 7A | Native v2 Semantic Search | 📋 Planned | - |
+| 7A | Native v2 Semantic Search | ✅ Complete | - |
 | 7B | Testing & Validation | 📋 Planned | - |
 | 7C | Polish & Documentation | 📋 Planned | - |
 
@@ -75,25 +75,30 @@ v2 core architecture merged. Planning remaining work for production readiness.
 - [x] Add `hybrid_search_v2` MCP tool with RRF fusion and optional reranking
 - [x] PR #38 merged to main
 
-## To-Do List (Phase 7A)
+## To-Do List (Phase 7A) - COMPLETE
 
-- [ ] Create `V2SemanticSearcher` struct in `internal/embedding/searcher_v2.go`
-- [ ] Implement `Search(ctx, query, limit)` method: embed query → vector search → lookup locations
-- [ ] Add tests for `V2SemanticSearcher`
-- [ ] Update `hybrid_search_v2` MCP tool to use native v2 search
-- [ ] Test end-to-end with real embeddings (manual verification)
+- [x] Create `V2SemanticSearcher` struct in `internal/embedding/searcher_v2.go`
+- [x] Implement `Search(ctx, query, limit)` method: embed query → vector search → lookup locations
+- [x] Add tests for `V2SemanticSearcher` (6 tests passing)
+- [x] Update `hybrid_search_v2` MCP tool to use native v2 search
+- [ ] Test end-to-end with real embeddings (manual verification - deferred to 7B)
 
 ## Progress Notes
 
-_Update this section as you complete items._
+### Phase 7A Completed
+- Created `V2SemanticSearcher` in `internal/embedding/searcher_v2.go`
+- Implements brute-force fallback when HNSW vector index not available
+- Added `VectorIndex()` method to Indexer for external access
+- Updated `semantic_v2.go` to use native v2 search instead of v1 fallback
+- All 6 V2SemanticSearcher tests pass
 
 ---
 
 ## Remaining Work (Phase 7)
 
-### 7A: Native v2 Semantic Search (P0) - IN PROGRESS
-- [ ] Implement search using v2 cache + locations + vector index
-- [ ] Update `hybrid_search_v2` to use native search (no v1 fallback)
+### 7A: Native v2 Semantic Search (P0) - COMPLETE
+- [x] Implement search using v2 cache + locations + vector index
+- [x] Update `hybrid_search_v2` to use native search (no v1 fallback)
 
 ### 7B: Testing & Validation (P1)
 - [ ] E2E integration tests with real embeddings
@@ -148,7 +153,7 @@ _Update this section as you complete items._
       {"phase": 4, "status": "completed", "pr": 38},
       {"phase": 5, "status": "completed", "pr": 38},
       {"phase": 6, "status": "completed", "pr": 38},
-      {"phase": "7A", "name": "Native v2 Search", "status": "in_progress"},
+      {"phase": "7A", "name": "Native v2 Search", "status": "completed"},
       {"phase": "7B", "name": "Testing & Validation", "status": "planned"},
       {"phase": "7C", "name": "Polish", "status": "planned"}
     ],
