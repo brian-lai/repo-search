@@ -1,119 +1,161 @@
 # Current Work Summary
 
-Executing: Dimension-Grouped Embedding Tables for Org-Scale Multi-Repo Support
+Executing: Codetect v2 - Phase 7A: Native v2 Semantic Search
 
-**Branch:** `para/dimension-grouped-embeddings`
-**Master Plan:** context/plans/2026-01-24-dimension-grouped-embeddings.md
+**Branch:** `para/codetect-v2-phase-7a`
+**Master Plan:** context/plans/2026-01-28-codetect-v2-cursor-inspired.md
+**Remaining Work Plan:** context/plans/2026-01-28-codetect-v2-remaining-work.md
+**Status:** Phase 7A In Progress
 
-## Problem
+## Summary
 
-Single `embeddings` table with fixed vector dimensions causes dimension mismatch errors when users switch models, prevents cross-repo search, and doesn't scale for org deployment (3000+ repos at Justworks).
+v2 core architecture merged. Planning remaining work for production readiness.
 
-## Solution
+## Phase Status
 
-Dimension-grouped tables (`embeddings_768`, `embeddings_1024`) with repo config tracking.
+| Phase | Description | Status | PR |
+|-------|-------------|--------|-----|
+| 1 | Merkle Tree Change Detection | ✅ Complete | #38 |
+| 2 | AST-Based Syntactic Chunking | ✅ Complete | #38 |
+| 3 | Content-Addressed Embedding Cache | ✅ Complete | #38 |
+| 4 | HNSW Vector Indexing | ✅ Complete | #38 |
+| 5 | Two-Stage Retrieval + Reranking | ✅ Complete | #38 |
+| 6 | Incremental Pipeline Integration | ✅ Complete | #38 |
+| 7A | Native v2 Semantic Search | 📋 Planned | - |
+| 7B | Testing & Validation | 📋 Planned | - |
+| 7C | Polish & Documentation | 📋 Planned | - |
 
-## To-Do List
+## New v2 Files Created
 
-### Phase 1: Database Schema Updates
-- [x] Add `tableNameForDimensions(dim int) string` helper function
-- [x] Add `repo_embedding_configs` table schema and CRUD
-- [x] Modify `initSchema()` to create dimension-specific tables
+### Phase 1: Merkle Tree
+- `internal/merkle/node.go` - Node struct with SHA-256 hash
+- `internal/merkle/tree.go` - Tree data structure
+- `internal/merkle/builder.go` - Filesystem tree construction
+- `internal/merkle/diff.go` - Tree comparison for change detection
+- `internal/merkle/store.go` - JSON persistence
+- `internal/merkle/merkle_test.go` - 55 tests, 91% coverage
 
-### Phase 2: EmbeddingStore Refactor
-- [x] Update `tableName()` method to return dimension-specific table
-- [x] Update `Save()` and `SaveBatch()` to use correct table
-- [x] Update `Search()` to query correct table (via GetAll)
-- [x] Update `Delete()` and `DeleteAll()` to target correct table
-- [x] Update `GetByPath()` and `Count()` to use correct table
+### Phase 2: AST Chunker
+- `internal/chunker/chunk.go` - Chunk struct with ContentHash
+- `internal/chunker/languages.go` - 10 language configs
+- `internal/chunker/ast.go` - tree-sitter based chunking
+- `internal/chunker/chunker_test.go` - 38 tests
 
-### Phase 3: Repo Config Management
-- [x] Create `RepoEmbeddingConfig` struct
-- [x] Implement `GetRepoConfig()` method
-- [x] Implement `SetRepoConfig()` method
-- [x] Implement `ListRepoConfigs()` method
+### Phase 3: Content Cache
+- `internal/embedding/cache.go` - Content-addressed embedding storage
+- `internal/embedding/locations.go` - Chunk location tracking
+- `internal/embedding/pipeline.go` - Cache-aware embedding pipeline
+- Tests for all components
 
-### Phase 4: Model Switch Handling
-- [x] Add dimension change detection in `codetect-index embed`
-- [x] Implement `MigrateRepoDimensions()` to move data between tables
-- [ ] Update installer dimension mismatch handling (deferred - installer already has detection)
+### Phase 4: HNSW Index
+- `internal/db/postgres_hnsw.go` - PostgreSQL HNSW helpers
+- `internal/db/sqlite_hnsw.go` - SQLite-vec integration
+- `internal/embedding/vector_index.go` - Unified VectorIndex interface
+- `internal/config/hnsw.go` - HNSW configuration
 
-### Phase 5: Cross-Repo Search
-- [x] Add `CrossRepoSearchResult` and `CrossRepoSearchResponse` types
-- [x] Implement `SearchAcrossRepos()` method in SemanticSearcher
-- [x] Implement `GetAllAcrossRepos()` method in EmbeddingStore
-- [ ] Update MCP tool to expose cross-repo search (deferred - future enhancement)
+### Phase 5: RRF + Reranking
+- `internal/fusion/rrf.go` - RRF algorithm
+- `internal/search/retriever.go` - Multi-signal retrieval
+- `internal/rerank/reranker.go` - Cross-encoder reranking
+- `internal/config/search.go` - Search configuration
 
-### Phase 6: SQLite Compatibility
-- [x] Keep single table for SQLite (conditional in `tableName()`) - already done
-- [x] Test SQLite path still works - verified via existing tests
+### Phase 6: Integration (In Progress)
+- `internal/indexer/indexer.go` - v2 Indexer integrating all components
+- `internal/indexer/indexer_test.go` - Integration tests
+- `cmd/codetect-index/main.go` - CLI updated with --v2 flag support
+- `internal/tools/semantic_v2.go` - v2 MCP tool `hybrid_search_v2`
+- `internal/tools/tools.go` - RegisterAll updated to include v2 tools
 
-### Phase 7: Migration Tool
-- [x] Deferred - automatic dimension detection handles most cases
-- [x] Users can clear embeddings and re-embed if needed
-- [ ] Future: Add `codetect migrate-embeddings` for complex migrations
+## Completed Work (Phase 6)
+
+- [x] Create v2 Indexer integrating Merkle tree, AST chunker, cache, and locations
+- [x] Update codetect-index CLI to use v2 indexer (--v2 flag)
+- [x] Add v2 stats command (--v2 flag)
+- [x] Add JSON output support for v2 commands
+- [x] Add `hybrid_search_v2` MCP tool with RRF fusion and optional reranking
+- [x] PR #38 merged to main
+
+## To-Do List (Phase 7A)
+
+- [ ] Create `V2SemanticSearcher` struct in `internal/embedding/searcher_v2.go`
+- [ ] Implement `Search(ctx, query, limit)` method: embed query → vector search → lookup locations
+- [ ] Add tests for `V2SemanticSearcher`
+- [ ] Update `hybrid_search_v2` MCP tool to use native v2 search
+- [ ] Test end-to-end with real embeddings (manual verification)
 
 ## Progress Notes
 
-### Phases 1-3 Complete
+_Update this section as you complete items._
 
-**Changes to `internal/embedding/store.go`:**
-- Added `tableNameForDimensions(dialect, dim)` helper - returns `embeddings_768`, `embeddings_1024`, etc. for PostgreSQL
-- Added `tableName()` method on EmbeddingStore - uses dimension-specific table for Postgres, single table for SQLite
-- Added `initRepoConfigTable()` - creates `repo_embedding_configs` table for tracking model/dimensions per repo
-- Added `RepoEmbeddingConfig` struct with `GetRepoConfig()`, `SetRepoConfig()`, `ListRepoConfigs()` methods
-- Updated ALL query methods to use `s.tableName()` instead of hardcoded "embeddings":
-  - `Save()`, `SaveBatch()`, `GetByPath()`, `GetAll()`, `HasEmbedding()`
-  - `DeleteByPath()`, `DeleteAll()`, `Count()`, `Stats()`
-- Schema initialization creates dimension-specific tables with dimension-specific index names
+---
 
-**All tests pass** (`make test`)
+## Remaining Work (Phase 7)
 
-### Phase 4 Complete
+### 7A: Native v2 Semantic Search (P0) - IN PROGRESS
+- [ ] Implement search using v2 cache + locations + vector index
+- [ ] Update `hybrid_search_v2` to use native search (no v1 fallback)
 
-**Changes to `internal/embedding/store.go`:**
-- Added `CheckDimensionMismatch()` - detects if repo has existing embeddings with different dimensions
-- Added `DeleteFromDimensionTable()` - deletes repo embeddings from a specific dimension table
-- Added `MigrateRepoDimensions()` - handles full migration (delete old + update config)
-- Added `VectorDimensions()` - returns configured dimensions for the store
+### 7B: Testing & Validation (P1)
+- [ ] E2E integration tests with real embeddings
+- [ ] Performance benchmarks vs targets
 
-**Changes to `cmd/codetect-index/main.go`:**
-- Added dimension mismatch detection after store creation
-- Auto-migrates on dimension change (deletes old, updates config)
-- Updates repo config after successful embedding
+### 7C: Polish (P2)
+- [ ] Decide on v2 default behavior
+- [ ] Update documentation
 
-### Phase 5 Complete
+## Plan Files
 
-**Changes to `internal/embedding/store.go`:**
-- Added `RepoRoot` field to `EmbeddingRecord` (for cross-repo results)
-- Added `GetAllAcrossRepos(repoRoots)` - queries all repos in dimension group
-- Added `scanEmbeddingRecordsWithRepo()` - scans rows with repo_root column
+- **Master:** `context/plans/2026-01-28-codetect-v2-cursor-inspired.md`
+- **Phase 1:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-1.md`
+- **Phase 2:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-2.md`
+- **Phase 3:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-3.md`
+- **Phase 4:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-4.md`
+- **Phase 5:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-5.md`
+- **Phase 6:** `context/plans/2026-01-28-codetect-v2-cursor-inspired-phase-6.md`
 
-**Changes to `internal/embedding/search.go`:**
-- Added `CrossRepoSearchResult` type (extends SemanticResult with RepoRoot)
-- Added `CrossRepoSearchResponse` type
-- Added `SearchAcrossRepos()` method for org-wide semantic search
+## Key Decisions
 
-### Phase 6 & 7 Notes
+1. **tree-sitter** for AST parsing (user decision)
+2. **All 6 phases** in scope for v2.0
+3. **Phases 1-5 parallelized**, Phase 6 integrates after
 
-- SQLite compatibility was already built-in throughout the implementation
-- Migration tool deferred since automatic dimension detection handles most cases
-- Users with old PostgreSQL data can clear and re-embed via `codetect embed --force`
+## Performance Targets
+
+| Metric | v1 | v2 Target |
+|--------|-----|-----------|
+| Incremental index (1 file) | ~30 sec | <2 sec |
+| Search (100K vectors) | ~200ms | <50ms |
+| Cache hit rate | N/A | >95% |
 
 ---
 
 ```json
 {
-  "active_context": ["context/plans/2026-01-24-dimension-grouped-embeddings.md"],
-  "completed_summaries": [
-    "context/plans/2026-01-24-ast-grep-hybrid-indexer.md",
-    "context/plans/2026-01-24-eval-model-selection.md",
-    "context/plans/2026-01-23-fix-config-preservation-overwriting-selections.md",
-    "context/plans/2026-01-22-installer-config-preservation-and-reembedding.md",
-    "context/plans/2026-01-23-parallel-eval-execution.md"
+  "active_context": [
+    "context/plans/2026-01-28-codetect-v2-remaining-work.md"
   ],
-  "execution_branch": "para/dimension-grouped-embeddings",
-  "execution_started": "2026-01-24T12:45:00Z",
-  "last_updated": "2026-01-24T12:45:00Z"
+  "completed_summaries": [
+    "context/plans/2026-01-24-dimension-grouped-embeddings.md",
+    "context/plans/2026-01-28-codetect-v2-cursor-inspired.md"
+  ],
+  "phased_execution": {
+    "master_plan": "context/plans/2026-01-28-codetect-v2-cursor-inspired.md",
+    "remaining_plan": "context/plans/2026-01-28-codetect-v2-remaining-work.md",
+    "phases": [
+      {"phase": 1, "status": "completed", "pr": 38},
+      {"phase": 2, "status": "completed", "pr": 38},
+      {"phase": 3, "status": "completed", "pr": 38},
+      {"phase": 4, "status": "completed", "pr": 38},
+      {"phase": 5, "status": "completed", "pr": 38},
+      {"phase": 6, "status": "completed", "pr": 38},
+      {"phase": "7A", "name": "Native v2 Search", "status": "in_progress"},
+      {"phase": "7B", "name": "Testing & Validation", "status": "planned"},
+      {"phase": "7C", "name": "Polish", "status": "planned"}
+    ],
+    "current_phase": "7A"
+  },
+  "execution_branch": "para/codetect-v2-phase-7a",
+  "execution_started": "2026-01-28T21:50:00Z",
+  "last_updated": "2026-01-28T21:50:00Z"
 }
 ```
