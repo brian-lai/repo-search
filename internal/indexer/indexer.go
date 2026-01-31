@@ -536,3 +536,9 @@ func (idx *Indexer) Locations() *embedding.LocationStore {
 func (idx *Indexer) Cache() *embedding.EmbeddingCache {
 	return idx.cache
 }
+
+// VectorIndex returns the vector index for external use.
+// May be nil if no vector index is available.
+func (idx *Indexer) VectorIndex() embedding.VectorIndex {
+	return idx.vectorIndex
+}

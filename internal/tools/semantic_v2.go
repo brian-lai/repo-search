@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"codetect/internal/config"
 	dbpkg "codetect/internal/db"
@@ -14,8 +16,8 @@ import (
 	"codetect/internal/indexer"
 	"codetect/internal/mcp"
 	"codetect/internal/rerank"
-	"codetect/internal/search"
 	"codetect/internal/search/files"
+	"codetect/internal/search/keyword"
 )
 
 // RegisterV2SemanticTools registers the v2 semantic search MCP tools.
@@ -70,6 +72,9 @@ func registerHybridSearchV2(server *mcp.Server) {
 			repoRoot = "."
 		}
 
+		ctx := context.Background()
+		start := time.Now()
+
 		// Open v2 indexer for search
 		idx, err := openV2Indexer(repoRoot)
 		if err != nil {
@@ -82,37 +87,55 @@ func registerHybridSearchV2(server *mcp.Server) {
 		}
 		defer idx.Close()
 
-		// Create semantic searcher from v2 indexer components
-		semanticSearcher, err := createSemanticSearcherFromV2(idx, repoRoot)
-		if err != nil {
-			// Continue without semantic search
-			semanticSearcher = nil
+		// Create native v2 semantic searcher
+		v2Searcher, err := createV2SemanticSearcher(idx, repoRoot)
+		semanticAvailable := err == nil && v2Searcher != nil && v2Searcher.Available()
+
+		// Run keyword and semantic search in parallel
+		var keywordResults, semanticResults []fusion.Result
+		var keywordErr, semanticErr error
+		var wg sync.WaitGroup
+
+		// Keyword search
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			keywordResults, keywordErr = searchKeywordV2(ctx, query, repoRoot, limit)
+		}()
+
+		// Semantic search using native v2 searcher
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if v2Searcher == nil || !v2Searcher.Available() {
+				return
+			}
+			semanticResults, semanticErr = searchSemanticV2(ctx, v2Searcher, query, repoRoot, limit)
+		}()
+
+		wg.Wait()
+
+		// Log errors but continue (graceful degradation)
+		if keywordErr != nil {
+			// Non-fatal, just won't have keyword results
+			keywordResults = nil
+		}
+		if semanticErr != nil {
+			// Non-fatal, just won't have semantic results
+			semanticResults = nil
 		}
 
-		// Create retriever with v2 config
-		retrieverCfg := config.DefaultRetrieverConfig()
-		retrieverCfg.KeywordLimit = limit
-		retrieverCfg.SemanticLimit = limit
-		retrieverCfg.SymbolLimit = limit / 2
-		retrieverCfg.Parallel = true
+		// Fuse results with RRF
+		weights := config.DefaultRetrieverConfig().Weights
+		fusedResults := fusion.WeightedRRF(weights, keywordResults, semanticResults, nil)
 
-		retriever := search.NewRetriever(semanticSearcher, nil, retrieverCfg)
-
-		// Perform retrieval
-		ctx := context.Background()
-		retrieveResult, err := retriever.Retrieve(ctx, query, search.RetrieveOptions{
-			RepoRoot:  repoRoot,
-			Limit:     limit * 2, // Get extra candidates for reranking
-			SnippetFn: getSnippetFn(),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("retrieval failed: %w", err)
+		// Limit fused results
+		if len(fusedResults) > limit*2 {
+			fusedResults = fusedResults[:limit*2]
 		}
-
-		finalResults := retrieveResult.Results
 
 		// Optionally apply reranking
-		if enableRerank && len(finalResults) > 0 {
+		if enableRerank && len(fusedResults) > 0 {
 			rerankCfg := config.DefaultRerankerConfig()
 			rerankCfg.Enabled = true
 			rerankCfg.TopK = limit
@@ -121,34 +144,34 @@ func registerHybridSearchV2(server *mcp.Server) {
 
 			// Build contents map from snippets
 			contents := make(map[string]string)
-			for _, r := range finalResults {
+			for _, r := range fusedResults {
 				if r.Snippet != "" {
 					contents[r.ID] = r.Snippet
 				}
 			}
 
-			rerankResult, err := reranker.Rerank(ctx, query, finalResults, contents)
+			rerankResult, err := reranker.Rerank(ctx, query, fusedResults, contents)
 			if err == nil {
-				finalResults = rerankResult.Results
+				fusedResults = rerankResult.Results
 			}
 		}
 
-		// Limit final results
-		if len(finalResults) > limit {
-			finalResults = finalResults[:limit]
+		// Apply final limit
+		if len(fusedResults) > limit {
+			fusedResults = fusedResults[:limit]
 		}
 
 		// Build response
 		response := HybridSearchV2Result{
 			Query:             query,
-			Results:           finalResults,
-			KeywordCount:      retrieveResult.KeywordCount,
-			SemanticCount:     retrieveResult.SemanticCount,
-			SymbolCount:       retrieveResult.SymbolCount,
-			SemanticAvailable: retrieveResult.SemanticAvailable,
-			SymbolAvailable:   retrieveResult.SymbolAvailable,
+			Results:           fusedResults,
+			KeywordCount:      len(keywordResults),
+			SemanticCount:     len(semanticResults),
+			SymbolCount:       0, // Symbol search not implemented for v2 yet
+			SemanticAvailable: semanticAvailable,
+			SymbolAvailable:   false,
 			Reranked:          enableRerank,
-			Duration:          retrieveResult.Duration.String(),
+			Duration:          time.Since(start).String(),
 		}
 
 		data, err := json.Marshal(response)
@@ -216,15 +239,8 @@ func openV2Indexer(repoRoot string) (*indexer.Indexer, error) {
 	return indexer.New(repoRoot, cfg)
 }
 
-// createSemanticSearcherFromV2 creates a semantic searcher from v2 indexer components.
-// This bridges the v2 content-addressed cache to the v1 semantic searcher interface.
-func createSemanticSearcherFromV2(idx *indexer.Indexer, repoRoot string) (*embedding.SemanticSearcher, error) {
-	// Get the embedding pipeline from the indexer
-	pipeline := idx.Pipeline()
-	if pipeline == nil {
-		return nil, fmt.Errorf("embedding pipeline not available")
-	}
-
+// createV2SemanticSearcher creates a native v2 semantic searcher from indexer components.
+func createV2SemanticSearcher(idx *indexer.Indexer, repoRoot string) (*embedding.V2SemanticSearcher, error) {
 	// Create embedder from environment configuration
 	embedder, err := embedding.NewEmbedderFromEnv()
 	if err != nil {
@@ -248,41 +264,86 @@ func createSemanticSearcherFromV2(idx *indexer.Indexer, repoRoot string) (*embed
 		return nil, fmt.Errorf("location store not available")
 	}
 
-	// Create a v2-aware semantic searcher
-	return newV2SemanticSearcher(cache, locations, embedder, repoRoot), nil
+	// Get vector index (may be nil, searcher will use brute-force fallback)
+	vectorIndex := idx.VectorIndex()
+
+	// Create native v2 semantic searcher
+	return embedding.NewV2SemanticSearcher(cache, locations, embedder, repoRoot, vectorIndex), nil
 }
 
-// newV2SemanticSearcher creates a semantic searcher that uses v2 components.
-// This wraps the v2 cache and locations to provide the SemanticSearcher interface.
-func newV2SemanticSearcher(cache *embedding.EmbeddingCache, locations *embedding.LocationStore, embedder embedding.Embedder, repoRoot string) *embedding.SemanticSearcher {
-	// For now, we use the v1 semantic searcher with a shim.
-	// A proper implementation would use the v2 cache directly for search.
-	// TODO: Implement native v2 semantic search using cache + locations + vector index
-
-	// Fall back to trying to open v1 store for now
-	searcher, err := openSemanticSearcher()
-	if err != nil {
-		return nil
+// searchKeywordV2 performs keyword search and returns results in fusion format.
+func searchKeywordV2(ctx context.Context, query, repoRoot string, limit int) ([]fusion.Result, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
-	return searcher
+
+	results, err := keyword.Search(query, repoRoot, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	fusionResults := make([]fusion.Result, 0, len(results.Results))
+	for _, res := range results.Results {
+		fusionResults = append(fusionResults, fusion.Result{
+			ID:      fmt.Sprintf("%s:%d", res.Path, res.LineStart),
+			Path:    res.Path,
+			Line:    res.LineStart,
+			EndLine: res.LineEnd,
+			Score:   float64(res.Score),
+			Source:  "keyword",
+			Snippet: res.Snippet,
+		})
+	}
+	return fusionResults, nil
 }
 
-// getSnippetFnV2 returns a function that reads code snippets from files.
-// This is the same as the v1 version but defined here for v2 tools.
-func getSnippetFnV2() func(path string, start, end int) string {
-	return func(path string, start, end int) string {
-		result, err := files.GetFile(path, start, end)
+// searchSemanticV2 performs semantic search using the native v2 searcher.
+func searchSemanticV2(ctx context.Context, searcher *embedding.V2SemanticSearcher, query, repoRoot string, limit int) ([]fusion.Result, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Use SearchWithSnippets to include code snippets
+	response, err := searcher.SearchWithSnippets(ctx, query, limit, func(path string, start, end int) string {
+		result, err := files.GetFile(filepath.Join(repoRoot, path), start, end)
 		if err != nil {
 			return fmt.Sprintf("[Error reading %s: %v]", path, err)
 		}
-
 		snippet := result.Content
-
-		// Truncate if too long
 		if len(snippet) > 500 {
 			snippet = snippet[:500] + "..."
 		}
-
 		return snippet
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	if !response.Available {
+		return nil, nil
+	}
+
+	fusionResults := make([]fusion.Result, 0, len(response.Results))
+	for _, res := range response.Results {
+		fusionResults = append(fusionResults, fusion.Result{
+			ID:      fmt.Sprintf("%s:%d:%d", res.Path, res.StartLine, res.EndLine),
+			Path:    res.Path,
+			Line:    res.StartLine,
+			EndLine: res.EndLine,
+			Score:   float64(res.Score),
+			Source:  "semantic",
+			Snippet: res.Snippet,
+			Metadata: map[string]interface{}{
+				"node_type": res.NodeType,
+				"node_name": res.NodeName,
+				"language":  res.Language,
+			},
+		})
+	}
+	return fusionResults, nil
 }
+
